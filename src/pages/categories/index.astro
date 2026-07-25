@@ -1,0 +1,50 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import ArrowIcon from '../../components/ArrowIcon.astro';
+import { getPublishedPosts, uniqueCategories, uniqueTags } from '../../lib/posts';
+
+const posts = await getPublishedPosts();
+const categories = uniqueCategories(posts);
+const tags = uniqueTags(posts);
+const countCategory = (name: string) => posts.filter((post) => post.data.category === name).length;
+---
+<BaseLayout title="分类" description="从主题与技术方向浏览文章。">
+  <div class="page-shell taxonomy-page">
+    <header class="index-intro taxonomy-intro">
+      <div class="index-intro-kicker"><span>INDEX</span><span>{categories.length} CATEGORIES · {tags.length} TAGS</span></div>
+      <div class="index-intro-copy">
+        <h1>分类与标签</h1>
+        <p>按主题浏览完整文章集合，或用标签快速定位具体技术。</p>
+      </div>
+    </header>
+    <div class="taxonomy-overview">
+    <section class="category-panel" aria-labelledby="categories-heading">
+      <header class="taxonomy-section-head">
+        <div><span class="taxonomy-type">CATEGORIES</span><h2 id="categories-heading">分类</h2></div>
+        <p>完整主题集合</p>
+      </header>
+      <div class="category-list">
+        {categories.map((category, index) => (
+          <a class="category-row" href={`/category/${encodeURIComponent(category)}`}>
+            <span class="category-index">{String(index + 1).padStart(2, '0')}</span>
+            <span class="category-name">{category}</span>
+            <span class="category-count"><strong>{countCategory(category)}</strong><span>篇文章</span></span>
+            <ArrowIcon />
+          </a>
+        ))}
+      </div>
+    </section>
+    <section class="tag-panel" id="tags" aria-labelledby="tags-heading">
+      <header class="taxonomy-section-head">
+        <div><span class="taxonomy-type">TAGS</span><h2 id="tags-heading">标签</h2></div>
+        <p>细粒度技术索引</p>
+      </header>
+      <div class="tag-cloud">
+        {tags.map((tag) => (
+          <a class="tag-chip" href={`/tag/${encodeURIComponent(tag)}`}><span>#</span>{tag}</a>
+        ))}
+      </div>
+    </section>
+    </div>
+  </div>
+</BaseLayout>

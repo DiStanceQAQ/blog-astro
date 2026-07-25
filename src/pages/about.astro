@@ -1,0 +1,50 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { SITE } from '../config';
+---
+<BaseLayout title="关于" description="关于刘家宁：前端开发、可视化、三维图形与数字体验。">
+  <section class="about-hero">
+    <div class="about-hero-copy">
+      <h1><span>让技术被看见、</span><span>被理解，</span><span>也让体验被感受到。</span></h1>
+      <p>前端开发工程师，长期关注可视化、三维图形与数字体验。</p>
+    </div>
+    <img src="/images/about-studio.webp" alt="投影工作室中的创作者" />
+  </section>
+  <div class="about-sections">
+    <section class="about-section">
+      <h2>现在</h2>
+      <div class="about-copy">
+        <p>我目前专注于前端方向的开发与探索，尤其在可视化、三维图形与交互体验领域持续投入时间与热情。</p>
+        <p>喜欢把复杂的技术问题拆解成清晰的结构，再用代码与设计让它们变得可感知、可交互、可被理解。</p>
+      </div>
+    </section>
+    <section class="about-section">
+      <h2>关注的方向</h2>
+      <div class="about-copy focus-list">
+        <div class="focus-item"><div><h3>Web 可视化</h3><p>用数据、图形与动画讲述真实世界的结构与变化。</p></div></div>
+        <div class="focus-item"><div><h3>三维图形</h3><p>探索 WebGL、Cesium 与三维渲染在浏览器中的更多可能性。</p></div></div>
+        <div class="focus-item"><div><h3>交互设计</h3><p>关注人与信息的关系，追求自然、清晰、有反馈的交互。</p></div></div>
+        <div class="focus-item"><div><h3>工程实践</h3><p>在项目中打磨工程能力，让代码可维护、可迭代、可扩展。</p></div></div>
+      </div>
+    </section>
+    <section class="about-section">
+      <h2>经历</h2>
+      <div class="about-copy">
+        <div class="timeline-row"><span>2024 — 2027</span><span class="timeline-dot"></span><span>中国地质大学（武汉），测绘工程硕士。</span></div>
+        <div class="timeline-row"><span>2020 — 2024</span><span class="timeline-dot"></span><span>南京信息工程大学，地理空间信息工程本科。</span></div>
+        <div class="timeline-row"><span>现在</span><span class="timeline-dot"></span><span>持续构建个人项目与内容，分享思考与实践，保持长期主义。</span></div>
+      </div>
+    </section>
+    <section class="about-section">
+      <h2>找到我</h2>
+      <div>
+        <div class="contact-statement">持续构建，保持好奇。</div>
+        <div class="contact-links">
+          <a href={SITE.github} target="_blank" rel="noreferrer">GitHub</a>
+          <a href={SITE.bilibili} target="_blank" rel="noreferrer">Bilibili</a>
+          <a href={`mailto:${SITE.email}`}>Email</a>
+        </div>
+      </div>
+    </section>
+  </div>
+</BaseLayout>

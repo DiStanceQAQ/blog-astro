@@ -1,0 +1,38 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { getPublishedPosts, postHref } from '../lib/posts';
+const posts = await getPublishedPosts();
+---
+<BaseLayout title="搜索" description="搜索博客文章">
+  <div class="page-shell search-page">
+    <header class="page-intro"><h1>搜索</h1><p>标题、摘要、分类与标签均可检索，搜索完全在浏览器中完成。</p></header>
+    <div class="search-form">
+      <label for="search-input">输入关键词</label>
+      <input class="search-input" id="search-input" type="search" placeholder="例如：WebGL" autocomplete="off" autofocus />
+    </div>
+    <p class="search-status" aria-live="polite">共 {posts.length} 篇文章</p>
+    <div class="search-results">
+      {posts.map((post) => (
+        <article class="search-result" data-search={`${post.data.title} ${post.data.description} ${post.data.category} ${post.data.tags.join(' ')}`.toLowerCase()}>
+          <h2><a href={postHref(post)}>{post.data.title}</a></h2>
+          <p>{post.data.description}</p>
+        </article>
+      ))}
+    </div>
+  </div>
+  <script>
+    const input = document.querySelector<HTMLInputElement>('#search-input');
+    const status = document.querySelector<HTMLElement>('.search-status');
+    const results = [...document.querySelectorAll<HTMLElement>('.search-result')];
+    input?.addEventListener('input', () => {
+      const query = input.value.trim().toLowerCase();
+      let count = 0;
+      results.forEach((result) => {
+        const visible = !query || (result.dataset.search ?? '').includes(query);
+        result.hidden = !visible;
+        if (visible) count += 1;
+      });
+      if (status) status.textContent = query ? `找到 ${count} 篇文章` : `共 ${count} 篇文章`;
+    });
+  </script>
+</BaseLayout>

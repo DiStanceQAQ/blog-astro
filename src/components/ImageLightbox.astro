@@ -1,0 +1,68 @@
+<dialog class="image-lightbox" aria-label="图片预览">
+  <button class="image-lightbox__close" type="button" aria-label="关闭图片预览">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M5 5l14 14M19 5L5 19"></path>
+    </svg>
+  </button>
+  <figure>
+    <img class="image-lightbox__image" src="" alt="" />
+    <figcaption class="image-lightbox__caption" hidden></figcaption>
+  </figure>
+</dialog>
+
+<script>
+  const dialog = document.querySelector<HTMLDialogElement>('.image-lightbox');
+  const preview = dialog?.querySelector<HTMLImageElement>('.image-lightbox__image');
+  const caption = dialog?.querySelector<HTMLElement>('.image-lightbox__caption');
+  const closeButton = dialog?.querySelector<HTMLButtonElement>('.image-lightbox__close');
+
+  if (dialog && preview && caption && closeButton) {
+    let activeTrigger: HTMLImageElement | null = null;
+
+    const openPreview = (image: HTMLImageElement) => {
+      activeTrigger = image;
+      preview.src = image.currentSrc || image.src;
+      preview.alt = image.alt;
+
+      const usefulCaption = image.alt.trim() && !/^image\.png$/i.test(image.alt.trim());
+      caption.textContent = usefulCaption ? image.alt.trim() : '';
+      caption.hidden = !usefulCaption;
+
+      dialog.showModal();
+    };
+
+    document.querySelectorAll<HTMLImageElement>('.article-content img').forEach((image, index) => {
+      image.classList.add('article-zoomable');
+      image.tabIndex = 0;
+      image.setAttribute('role', 'button');
+      image.setAttribute(
+        'aria-label',
+        image.alt.trim() ? `点击放大图片：${image.alt.trim()}` : `点击放大文章第 ${index + 1} 张图片`,
+      );
+
+      image.addEventListener('click', () => openPreview(image));
+      image.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          openPreview(image);
+        }
+      });
+    });
+
+    closeButton.addEventListener('click', () => dialog.close());
+    dialog.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        dialog.close();
+      }
+    });
+    dialog.addEventListener('click', (event) => {
+      if (event.target === dialog) dialog.close();
+    });
+    dialog.addEventListener('close', () => {
+      preview.removeAttribute('src');
+      activeTrigger?.focus();
+      activeTrigger = null;
+    });
+  }
+</script>

@@ -1,0 +1,128 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import ArrowIcon from '../../components/ArrowIcon.astro';
+import { getPublishedPosts, postHref, splitDate } from '../../lib/posts';
+
+const posts = await getPublishedPosts();
+const featuredPosts = [
+  ...posts.filter((post) => post.data.featured),
+  ...posts.filter((post) => !post.data.featured),
+].slice(0, 3);
+---
+<BaseLayout title="博客" description="记录关于前端、可视化与创造力的长期思考。">
+  <div class="page-shell blog-index-page">
+    <header class="index-intro">
+      <div class="index-intro-kicker"><span>WRITING</span><span>{String(posts.length).padStart(2, '0')} POSTS</span></div>
+      <div class="index-intro-copy">
+        <h1>博客</h1>
+        <p>记录关于前端、可视化与创造力的长期思考。</p>
+      </div>
+    </header>
+    {featuredPosts.length > 0 && (
+      <section class="featured-carousel" aria-label="精选文章" data-carousel>
+        <div class="featured-carousel-window">
+          <div class="featured-carousel-track" data-carousel-track>
+            {featuredPosts.map((post, index) => {
+              const date = splitDate(post.data.date);
+              return (
+                <article class="featured-slide" data-carousel-slide aria-hidden={index === 0 ? 'false' : 'true'}>
+                  <a class="featured-slide-image" href={postHref(post)} tabindex={index === 0 ? 0 : -1}>
+                    {post.data.cover
+                      ? <img src={post.data.cover} alt={post.data.coverAlt ?? ''} loading={index === 0 ? 'eager' : 'lazy'} />
+                      : <span class="image-placeholder"></span>}
+                  </a>
+                  <div class="featured-slide-copy">
+                    <p class="featured-slide-meta"><span>{post.data.category}</span><time datetime={post.data.date.toISOString()}>{date.year}.{date.short.replace('/', '.')}</time></p>
+                    <h3><a href={postHref(post)} tabindex={index === 0 ? 0 : -1}>{post.data.title}</a></h3>
+                    <p>{post.data.description}</p>
+                    <a class="featured-slide-link" href={postHref(post)} tabindex={index === 0 ? 0 : -1}>阅读全文 <ArrowIcon /></a>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+          <div class="featured-carousel-controls">
+            <button type="button" data-carousel-prev aria-label="上一篇精选文章"><ArrowIcon direction="left" /></button>
+            <button type="button" data-carousel-next aria-label="下一篇精选文章"><ArrowIcon /></button>
+          </div>
+        </div>
+        <div class="featured-carousel-dots" aria-label="选择精选文章">
+          {featuredPosts.map((post, index) => (
+            <button type="button" data-carousel-dot aria-label={`查看精选文章 ${index + 1}：${post.data.title}`} aria-current={index === 0 ? 'true' : 'false'}></button>
+          ))}
+        </div>
+      </section>
+    )}
+    <section class="post-index" aria-labelledby="archive-title">
+      <div class="index-section-head">
+        <h2 id="archive-title">全部文章</h2>
+        <span>按发布时间排序</span>
+      </div>
+      <div class="post-index-list">
+      {posts.map((post, index) => {
+        const date = splitDate(post.data.date);
+        return (
+          <article class="post-index-row">
+            <span class="post-index-number">{String(index + 1).padStart(2, '0')}</span>
+            <div class="post-index-meta">
+              <span>{post.data.category}</span>
+              <time datetime={post.data.date.toISOString()}>{date.year}.{date.short.replace('/', '.')}</time>
+            </div>
+            <div class="post-index-copy">
+              <h2><a href={postHref(post)}>{post.data.title}</a></h2>
+              <p>{post.data.description}</p>
+            </div>
+            <a class="post-index-arrow" href={postHref(post)} aria-label={`阅读${post.data.title}`}><ArrowIcon /></a>
+          </article>
+        );
+      })}
+      </div>
+    </section>
+  </div>
+</BaseLayout>
+
+<script>
+  const carousels = document.querySelectorAll<HTMLElement>('[data-carousel]');
+
+  carousels.forEach((carousel) => {
+    const track = carousel.querySelector<HTMLElement>('[data-carousel-track]');
+    const slides = [...carousel.querySelectorAll<HTMLElement>('[data-carousel-slide]')];
+    const dots = [...carousel.querySelectorAll<HTMLButtonElement>('[data-carousel-dot]')];
+    const previous = carousel.querySelector<HTMLButtonElement>('[data-carousel-prev]');
+    const next = carousel.querySelector<HTMLButtonElement>('[data-carousel-next]');
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    let active = 0;
+    let timer = 0;
+
+    const show = (nextIndex: number) => {
+      if (!track || slides.length === 0) return;
+      active = (nextIndex + slides.length) % slides.length;
+      track.style.transform = `translateX(-${active * 100}%)`;
+      slides.forEach((slide, index) => {
+        const selected = index === active;
+        slide.setAttribute('aria-hidden', String(!selected));
+        slide.querySelectorAll<HTMLAnchorElement>('a').forEach((link) => link.tabIndex = selected ? 0 : -1);
+      });
+      dots.forEach((dot, index) => dot.setAttribute('aria-current', String(index === active)));
+    };
+
+    const stop = () => window.clearInterval(timer);
+    const play = () => {
+      stop();
+      if (!reduceMotion.matches && slides.length > 1) timer = window.setInterval(() => show(active + 1), 7000);
+    };
+    const select = (index: number) => { show(index); play(); };
+
+    previous?.addEventListener('click', () => select(active - 1));
+    next?.addEventListener('click', () => select(active + 1));
+    dots.forEach((dot, index) => dot.addEventListener('click', () => select(index)));
+    carousel.addEventListener('mouseenter', stop);
+    carousel.addEventListener('mouseleave', play);
+    carousel.addEventListener('focusin', stop);
+    carousel.addEventListener('focusout', (event) => {
+      if (!carousel.contains(event.relatedTarget as Node | null)) play();
+    });
+    document.addEventListener('visibilitychange', () => document.hidden ? stop() : play());
+    play();
+  });
+</script>

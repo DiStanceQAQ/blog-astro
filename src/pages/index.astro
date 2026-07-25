@@ -1,17 +1,71 @@
 ---
-
+import BaseLayout from '../layouts/BaseLayout.astro';
+import ArrowIcon from '../components/ArrowIcon.astro';
+import { SITE } from '../config';
 ---
+<BaseLayout variant="home">
+  <div class="home-hero relative flex flex-col justify-center bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-50 overflow-hidden">
+    <div class="home-ambient" aria-hidden="true">
+      <span class="home-orbit home-orbit--outer"></span>
+      <span class="home-orbit home-orbit--inner"></span>
+      <span class="home-orbit-dot"></span>
+    </div>
+    <div class="container mx-auto px-6 md:px-12 relative z-10">
+      <div class="flex flex-col justify-center min-h-[calc(100vh-10rem)] max-w-5xl mx-auto">
+        <div class="space-y-6 md:space-y-8">
+          <p class="home-greeting home-reveal home-reveal--1 text-3xl md:text-5xl font-bold tracking-wide mb-4">你好，我是</p>
+          <h1 class="home-name home-reveal home-reveal--2 text-6xl sm:text-7xl lg:text-9xl font-black tracking-tight leading-tight">
+            <span class="home-name-gradient bg-clip-text text-transparent pb-2 block w-fit">刘家宁</span>
+          </h1>
+          <h2 class="home-role home-reveal home-reveal--3 text-2xl md:text-4xl font-bold">一名前端开发工程师。</h2>
+          <div class="home-copy home-reveal home-reveal--4 max-w-2xl space-y-4 text-lg md:text-xl leading-relaxed">
+            <p>喜欢 <span class="home-highlight font-bold underline underline-offset-2">可视化技术</span> 的一切。</p>
+            <p>我在这个网站记录我的成长，努力 💪 成为一个更好的程序员。</p>
+          </div>
+          <div class="home-actions home-reveal home-reveal--5 pt-4 flex flex-col sm:flex-row sm:items-center gap-5">
+            <div class="flex gap-4">
+              <a href="/blogs" class="home-primary-cta group relative px-8 py-3.5 rounded-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-bold shadow-lg hover:-translate-y-1 transition-all duration-300">
+                我的博客 <ArrowIcon class="home-cta-arrow" />
+              </a>
+              <a href="/about" class="home-secondary-cta px-8 py-3.5 rounded-full bg-transparent border-2 font-semibold transition-all duration-300">我的简历</a>
+            </div>
+            <div class="home-divider hidden sm:block w-px h-8 mx-2"></div>
+            <div class="flex items-center gap-4">
+              <a href={SITE.github} target="_blank" rel="noopener noreferrer" aria-label="GitHub" class="home-social-link p-2 rounded-lg transition-all duration-200">
+                <svg class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.648.5.5 5.647.5 12c0 5.084 3.292 9.386 7.867 10.909.575.106.785-.25.785-.556 0-.275-.01-1-.015-1.96-3.2.696-3.876-1.542-3.876-1.542-.523-1.33-1.277-1.684-1.277-1.684-1.045-.714.08-.699.08-.699 1.157.082 1.765 1.188 1.765 1.188 1.027 1.76 2.694 1.252 3.35.958.104-.747.402-1.252.732-1.54-2.553-.29-5.238-1.277-5.238-5.679 0-1.254.447-2.278 1.185-3.082-.119-.29-.514-1.46.113-3.044 0 0 .967-.31 3.168 1.176a11.03 11.03 0 012.88-.387c.977.004 1.962.132 2.88.387 2.2-1.486 3.166-1.176 3.166-1.176.63 1.584.235 2.754.116 3.044.74.804 1.185 1.828 1.185 3.082 0 4.415-2.69 5.384-5.253 5.67.413.358.78 1.064.78 2.146 0 1.548-.014 2.797-.014 3.177 0 .31.208.668.792.555C20.712 21.384 24 17.084 24 12 24 5.647 18.352.5 12 .5z" /></svg>
+              </a>
+              <a href={SITE.bilibili} target="_blank" rel="noopener noreferrer" aria-label="Bilibili" class="home-social-link p-2 rounded-lg transition-all duration-200">
+                <svg class="h-6 w-6" viewBox="0 0 96 86" fill="currentColor"><path d="M19.9 9.25a5.14 5.14 0 010-7.54 5.14 5.14 0 017.28 0l11.31 10.91c.32.31.6.65.82 1.02h17.11c.23-.37.5-.71.82-1.02L68.55 1.71a5.14 5.14 0 017.28 0 5.14 5.14 0 010 7.54l-4.56 4.39h3.4A21.33 21.33 0 0196 34.97v29.36a21.33 21.33 0 01-21.33 21.34H21.33A21.33 21.33 0 010 64.33V34.97a21.33 21.33 0 0121.33-21.33h3.13L19.9 9.25zm1.43 14.68a10.67 10.67 0 00-10.66 10.66v30.12a10.67 10.67 0 0010.66 10.66h53.34a10.67 10.67 0 0010.66-10.66V34.59a10.67 10.67 0 00-10.66-10.66H21.33zm5.34 20.76a5.33 5.33 0 0110.66 0v4.77a5.33 5.33 0 01-10.66 0v-4.77zm37.33-5.33a5.33 5.33 0 00-5.33 5.33v4.77a5.33 5.33 0 0010.66 0v-4.77A5.33 5.33 0 0064 39.36z" /></svg>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</BaseLayout>
 
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro</title>
-	</head>
-	<body>
-		<h1>Astro</h1>
-	</body>
-</html>
+<script>
+  const hero = document.querySelector<HTMLElement>('.home-hero');
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  let pointerFrame = 0;
+
+  const updatePointerGlow = (event: PointerEvent) => {
+    if (!hero || reduceMotion.matches || pointerFrame) return;
+
+    pointerFrame = window.requestAnimationFrame(() => {
+      const rect = hero.getBoundingClientRect();
+      const x = ((event.clientX - rect.left) / rect.width) * 100;
+      const y = ((event.clientY - rect.top) / rect.height) * 100;
+      hero.style.setProperty('--pointer-x', `${x.toFixed(2)}%`);
+      hero.style.setProperty('--pointer-y', `${y.toFixed(2)}%`);
+      pointerFrame = 0;
+    });
+  };
+
+  hero?.addEventListener('pointermove', updatePointerGlow, { passive: true });
+  hero?.addEventListener('pointerleave', () => {
+    hero.style.setProperty('--pointer-x', '74%');
+    hero.style.setProperty('--pointer-y', '42%');
+  });
+</script>

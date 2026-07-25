@@ -1,0 +1,24 @@
+---
+import type { GetStaticPaths } from 'astro';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import ArrowIcon from '../../components/ArrowIcon.astro';
+import { getPublishedPosts, postHref, splitDate, uniqueCategories, type Post } from '../../lib/posts';
+
+export const getStaticPaths = (async () => {
+  const posts = await getPublishedPosts();
+  return uniqueCategories(posts).map((category) => ({ params: { category }, props: { category, posts: posts.filter((post) => post.data.category === category) } }));
+}) satisfies GetStaticPaths;
+interface Props { category: string; posts: Post[] }
+const { category, posts } = Astro.props;
+---
+<BaseLayout title={category} description={`${category}分类下的文章`}>
+  <div class="page-shell taxonomy-detail">
+    <a class="back-link" href="/categories"><ArrowIcon direction="left" />返回分类</a>
+    <header class="page-intro"><h1>{category}</h1><p>{posts.length} 篇文章，按发布时间排列。</p></header>
+    <section class="archive-section">
+      {posts.map((post) => { const date = splitDate(post.data.date); return (
+        <article class="archive-row"><time class="archive-date"><span class="year">{date.year}</span><span class="short">{date.short}</span></time><div class="archive-copy"><span class="category">{post.data.category}</span><h2><a href={postHref(post)}>{post.data.title}</a></h2><p>{post.data.description}</p></div><a class="archive-arrow" href={postHref(post)} aria-label={`阅读${post.data.title}`}><ArrowIcon /></a></article>
+      ); })}
+    </section>
+  </div>
+</BaseLayout>

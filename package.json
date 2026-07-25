@@ -7,11 +7,23 @@
   },
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build",
+    "build": "astro check && astro build",
+    "check": "astro check",
     "preview": "astro preview",
-    "astro": "astro"
+		"astro": "astro",
+		"new": "node scripts/new-post.mjs",
+		"import": "node scripts/import-posts.mjs",
+		"localize": "node scripts/localize-images.mjs"
   },
   "dependencies": {
-    "astro": "^7.1.3"
+    "@astrojs/rss": "^4.0.19",
+    "@astrojs/sitemap": "^3.7.3",
+    "@tailwindcss/vite": "^4.3.3",
+    "astro": "^7.1.3",
+    "tailwindcss": "^4.3.3"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.9",
+    "typescript": "^6.0.3"
   }
 }

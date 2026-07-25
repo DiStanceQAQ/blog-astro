@@ -1,0 +1,52 @@
+<button
+  class="theme-toggle"
+  type="button"
+  data-theme-toggle
+  aria-label="切换颜色主题"
+  aria-pressed="false"
+>
+  <svg class="theme-icon theme-icon--sun" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <circle cx="12" cy="12" r="3.75"></circle>
+    <path d="M12 2.75v2.1M12 19.15v2.1M21.25 12h-2.1M4.85 12h-2.1M18.54 5.46l-1.49 1.49M6.95 17.05l-1.49 1.49M18.54 18.54l-1.49-1.49M6.95 6.95 5.46 5.46"></path>
+  </svg>
+  <svg class="theme-icon theme-icon--moon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path d="M20.25 15.25A8.75 8.75 0 0 1 8.75 3.75 8.75 8.75 0 1 0 20.25 15.25Z"></path>
+  </svg>
+  <span class="sr-only" data-theme-label>切换颜色主题</span>
+</button>
+
+<script>
+  const storageKey = 'blog-theme';
+  const root = document.documentElement;
+  const systemTheme = window.matchMedia('(prefers-color-scheme: dark)');
+
+  const setTheme = (theme: 'light' | 'dark', persist = false) => {
+    root.dataset.theme = theme;
+    root.style.colorScheme = theme;
+
+    if (persist) localStorage.setItem(storageKey, theme);
+
+    const nextTheme = theme === 'dark' ? '亮色' : '暗色';
+    document.querySelectorAll<HTMLButtonElement>('[data-theme-toggle]').forEach((button) => {
+      button.setAttribute('aria-label', `当前为${theme === 'dark' ? '暗色' : '亮色'}模式，切换到${nextTheme}模式`);
+      button.setAttribute('aria-pressed', String(theme === 'dark'));
+      button.title = `切换到${nextTheme}模式`;
+    });
+
+    document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
+      ?.setAttribute('content', theme === 'dark' ? '#000000' : '#ffffff');
+  };
+
+  setTheme(root.dataset.theme === 'light' ? 'light' : 'dark');
+
+  document.querySelectorAll<HTMLButtonElement>('[data-theme-toggle]').forEach((button) => {
+    button.addEventListener('click', () => {
+      setTheme(root.dataset.theme === 'dark' ? 'light' : 'dark', true);
+    });
+  });
+
+  systemTheme.addEventListener('change', (event) => {
+    if (localStorage.getItem(storageKey)) return;
+    setTheme(event.matches ? 'dark' : 'light');
+  });
+</script>

@@ -1,0 +1,57 @@
+---
+import '../styles/global.css';
+import { SITE } from '../config';
+import SiteHeader from '../components/SiteHeader.astro';
+
+interface Props {
+  title?: string;
+  description?: string;
+  image?: string;
+  variant?: 'dark' | 'home';
+}
+
+const {
+  title = SITE.title,
+  description = SITE.description,
+  image,
+  variant = 'dark',
+} = Astro.props;
+const pageTitle = title === SITE.title ? title : `${title} — ${SITE.name}`;
+const canonical = new URL(Astro.url.pathname, Astro.site ?? SITE.url);
+---
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="generator" content={Astro.generator} />
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#000000" />
+    <script is:inline>
+      (() => {
+        const stored = localStorage.getItem('blog-theme');
+        const theme = stored === 'light' || stored === 'dark'
+          ? stored
+          : window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.style.colorScheme = theme;
+        document.querySelector('meta[name="theme-color"]')
+          ?.setAttribute('content', theme === 'dark' ? '#000000' : '#ffffff');
+      })();
+    </script>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="canonical" href={canonical} />
+    <link rel="alternate" type="application/rss+xml" title={SITE.title} href="/rss.xml" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={description} />
+    {image && <meta property="og:image" content={new URL(image, Astro.site ?? SITE.url)} />}
+    <title>{pageTitle}</title>
+  </head>
+  <body class:list={[`page-${variant}`]}>
+    <a class="skip-link" href="#main">跳到正文</a>
+    <SiteHeader variant={variant} />
+    <main id="main"><slot /></main>
+  </body>
+</html>

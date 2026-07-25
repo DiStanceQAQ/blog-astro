@@ -1,0 +1,55 @@
+---
+import type { GetStaticPaths } from 'astro';
+import { render } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import ArrowIcon from '../../components/ArrowIcon.astro';
+import ImageLightbox from '../../components/ImageLightbox.astro';
+import PostMeta from '../../components/PostMeta.astro';
+import { getPublishedPosts, postHref, postSlug, type Post } from '../../lib/posts';
+import { SITE } from '../../config';
+
+export const getStaticPaths = (async () => {
+  const posts = await getPublishedPosts();
+  return posts.map((post, index) => ({ params: { slug: postSlug(post) }, props: { post, next: posts[index + 1] ?? posts[0] } }));
+}) satisfies GetStaticPaths;
+
+interface Props { post: Post; next: Post }
+const { post, next } = Astro.props;
+const { Content, headings } = await render(post);
+const toc = headings.filter((heading) => heading.depth === 2 || heading.depth === 3);
+const jsonLd = {
+  '@context': 'https://schema.org', '@type': 'BlogPosting', headline: post.data.title,
+  description: post.data.description, datePublished: post.data.date.toISOString(),
+  dateModified: (post.data.updated ?? post.data.date).toISOString(), author: { '@type': 'Person', name: SITE.author },
+  image: post.data.cover ? new URL(post.data.cover, Astro.site ?? SITE.url).href : undefined,
+};
+---
+<BaseLayout title={post.data.title} description={post.data.description} image={post.data.cover}>
+  <script is:inline type="application/ld+json" set:html={JSON.stringify(jsonLd)}></script>
+  <article>
+    <header class="article-hero">
+      <div class="article-hero-inner">
+        <h1>{post.data.title}</h1>
+        <p class="article-dek">{post.data.description}</p>
+        <PostMeta post={post} />
+      </div>
+    </header>
+    {post.data.cover && <img class="article-cover" src={post.data.cover} alt={post.data.coverAlt ?? ''} />}
+    <div class="article-surface">
+      <div class="article-grid">
+        <aside class="article-toc" aria-label="文章目录">
+          <p>目录</p>
+          <ol>{toc.map((heading) => <li><a href={`#${heading.slug}`}>{heading.text}</a></li>)}</ol>
+        </aside>
+        <div>
+          <div class="article-content"><Content /></div>
+          <footer class="article-end">
+            <div><small>作者</small><strong>{SITE.author}</strong></div>
+            <div class="next-post"><small>下一篇</small><a href={postHref(next)}><span>{next.data.title}</span><ArrowIcon /></a></div>
+          </footer>
+        </div>
+      </div>
+    </div>
+  </article>
+  <ImageLightbox />
+</BaseLayout>
