@@ -11,7 +11,9 @@ const { variant = 'dark' } = Astro.props;
 const pathname = Astro.url.pathname;
 const active = (href: string) => {
   const resolved = withBase(href);
-  return href === '/' ? pathname === resolved : pathname.startsWith(resolved);
+  return href === '/'
+    ? pathname.replace(/\/$/, '') === resolved.replace(/\/$/, '')
+    : pathname.startsWith(resolved);
 };
 ---
 
