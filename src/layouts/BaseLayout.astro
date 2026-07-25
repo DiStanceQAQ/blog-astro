@@ -2,6 +2,7 @@
 import '../styles/global.css';
 import { SITE } from '../config';
 import SiteHeader from '../components/SiteHeader.astro';
+import { withBase } from '../lib/paths';
 
 interface Props {
   title?: string;
@@ -17,7 +18,7 @@ const {
   variant = 'dark',
 } = Astro.props;
 const pageTitle = title === SITE.title ? title : `${title} — ${SITE.name}`;
-const canonical = new URL(Astro.url.pathname, Astro.site ?? SITE.url);
+const canonical = new URL(withBase(Astro.url.pathname), Astro.site ?? SITE.url);
 ---
 <!doctype html>
 <html lang="zh-CN">
@@ -39,14 +40,14 @@ const canonical = new URL(Astro.url.pathname, Astro.site ?? SITE.url);
           ?.setAttribute('content', theme === 'dark' ? '#000000' : '#ffffff');
       })();
     </script>
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/svg+xml" href={withBase('/favicon.svg')} />
     <link rel="canonical" href={canonical} />
-    <link rel="alternate" type="application/rss+xml" title={SITE.title} href="/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title={SITE.title} href={withBase('/rss.xml')} />
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="zh_CN" />
     <meta property="og:title" content={pageTitle} />
     <meta property="og:description" content={description} />
-    {image && <meta property="og:image" content={new URL(image, Astro.site ?? SITE.url)} />}
+    {image && <meta property="og:image" content={new URL(withBase(image), Astro.site ?? SITE.url)} />}
     <title>{pageTitle}</title>
   </head>
   <body class:list={[`page-${variant}`]}>

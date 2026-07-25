@@ -1,6 +1,7 @@
 ---
 import type { Post } from '../lib/posts';
 import { postHref } from '../lib/posts';
+import { withBase } from '../lib/paths';
 import PostMeta from './PostMeta.astro';
 
 interface Props { post: Post; size?: 'large' | 'small' }
@@ -8,7 +9,7 @@ const { post, size = 'small' } = Astro.props;
 ---
 <article class:list={['editorial-card', `editorial-card--${size}`]}>
   <a class="card-image" href={postHref(post)}>
-    {post.data.cover ? <img src={post.data.cover} alt={post.data.coverAlt ?? ''} loading={size === 'large' ? 'eager' : 'lazy'} /> : <span class="image-placeholder"></span>}
+    {post.data.cover ? <img src={withBase(post.data.cover)} alt={post.data.coverAlt ?? ''} loading={size === 'large' ? 'eager' : 'lazy'} /> : <span class="image-placeholder"></span>}
   </a>
   <div class="card-copy">
     <h2><a href={postHref(post)}>{post.data.title}</a></h2>

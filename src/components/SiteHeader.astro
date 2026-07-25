@@ -1,5 +1,6 @@
 ---
 import { NAV, SITE } from '../config';
+import { withBase } from '../lib/paths';
 import ThemeToggle from './ThemeToggle.astro';
 
 interface Props {
@@ -8,24 +9,27 @@ interface Props {
 
 const { variant = 'dark' } = Astro.props;
 const pathname = Astro.url.pathname;
-const active = (href: string) => href === '/' ? pathname === '/' : pathname.startsWith(href);
+const active = (href: string) => {
+  const resolved = withBase(href);
+  return href === '/' ? pathname === resolved : pathname.startsWith(resolved);
+};
 ---
 
 <header class:list={['site-header', `site-header--${variant}`]}>
-  <a class="site-brand" href="/" aria-label={`${SITE.name}首页`}>
-    <img src="/logo.svg" width="30" height="30" alt="" />
+  <a class="site-brand" href={withBase('/')} aria-label={`${SITE.name}首页`}>
+    <img src={withBase('/logo.svg')} width="30" height="30" alt="" />
     <span>{SITE.name}</span>
   </a>
   <nav class="desktop-nav" aria-label="主导航">
     {NAV.map((item, index) => (
       <>
-        <a href={item.href} aria-current={active(item.href) ? 'page' : undefined}>{item.label}</a>
+        <a href={withBase(item.href)} aria-current={active(item.href) ? 'page' : undefined}>{item.label}</a>
         {index < NAV.length - 1 && <span aria-hidden="true">/</span>}
       </>
     ))}
   </nav>
   <div class="header-actions">
-    <a class="search-link" href="/search" aria-label="搜索文章">搜索</a>
+    <a class="search-link" href={withBase('/search')} aria-label="搜索文章">搜索</a>
     <ThemeToggle />
     <button class="menu-button" type="button" aria-expanded="false" aria-controls="mobile-nav">
       <span></span><span></span>
@@ -33,8 +37,8 @@ const active = (href: string) => href === '/' ? pathname === '/' : pathname.star
     </button>
   </div>
   <nav id="mobile-nav" class="mobile-nav" aria-label="移动导航" hidden>
-    {NAV.map((item) => <a href={item.href} aria-current={active(item.href) ? 'page' : undefined}>{item.label}</a>)}
-    <a href="/search">搜索</a>
+    {NAV.map((item) => <a href={withBase(item.href)} aria-current={active(item.href) ? 'page' : undefined}>{item.label}</a>)}
+    <a href={withBase('/search')}>搜索</a>
   </nav>
 </header>
 

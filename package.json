@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "astro dev",
-    "build": "astro check && astro build",
+    "build": "astro check && astro build && node scripts/prefix-pages-output.mjs",
     "check": "astro check",
     "preview": "astro preview",
 		"astro": "astro",

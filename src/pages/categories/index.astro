@@ -2,6 +2,7 @@
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import ArrowIcon from '../../components/ArrowIcon.astro';
 import { getPublishedPosts, uniqueCategories, uniqueTags } from '../../lib/posts';
+import { withBase } from '../../lib/paths';
 
 const posts = await getPublishedPosts();
 const categories = uniqueCategories(posts);
@@ -25,7 +26,7 @@ const countCategory = (name: string) => posts.filter((post) => post.data.categor
       </header>
       <div class="category-list">
         {categories.map((category, index) => (
-          <a class="category-row" href={`/category/${encodeURIComponent(category)}`}>
+          <a class="category-row" href={withBase(`/category/${encodeURIComponent(category)}`)}>
             <span class="category-index">{String(index + 1).padStart(2, '0')}</span>
             <span class="category-name">{category}</span>
             <span class="category-count"><strong>{countCategory(category)}</strong><span>篇文章</span></span>
@@ -41,7 +42,7 @@ const countCategory = (name: string) => posts.filter((post) => post.data.categor
       </header>
       <div class="tag-cloud">
         {tags.map((tag) => (
-          <a class="tag-chip" href={`/tag/${encodeURIComponent(tag)}`}><span>#</span>{tag}</a>
+          <a class="tag-chip" href={withBase(`/tag/${encodeURIComponent(tag)}`)}><span>#</span>{tag}</a>
         ))}
       </div>
     </section>

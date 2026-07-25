@@ -3,6 +3,7 @@ import type { GetStaticPaths } from 'astro';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import ArrowIcon from '../../components/ArrowIcon.astro';
 import { getPublishedPosts, postHref, splitDate, uniqueCategories, type Post } from '../../lib/posts';
+import { withBase } from '../../lib/paths';
 
 export const getStaticPaths = (async () => {
   const posts = await getPublishedPosts();
@@ -13,7 +14,7 @@ const { category, posts } = Astro.props;
 ---
 <BaseLayout title={category} description={`${category}分类下的文章`}>
   <div class="page-shell taxonomy-detail">
-    <a class="back-link" href="/categories"><ArrowIcon direction="left" />返回分类</a>
+    <a class="back-link" href={withBase('/categories')}><ArrowIcon direction="left" />返回分类</a>
     <header class="page-intro"><h1>{category}</h1><p>{posts.length} 篇文章，按发布时间排列。</p></header>
     <section class="archive-section">
       {posts.map((post) => { const date = splitDate(post.data.date); return (

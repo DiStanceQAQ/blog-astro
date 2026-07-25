@@ -7,6 +7,7 @@ import ImageLightbox from '../../components/ImageLightbox.astro';
 import PostMeta from '../../components/PostMeta.astro';
 import { getPublishedPosts, postHref, postSlug, type Post } from '../../lib/posts';
 import { SITE } from '../../config';
+import { withBase } from '../../lib/paths';
 
 export const getStaticPaths = (async () => {
   const posts = await getPublishedPosts();
@@ -21,7 +22,7 @@ const jsonLd = {
   '@context': 'https://schema.org', '@type': 'BlogPosting', headline: post.data.title,
   description: post.data.description, datePublished: post.data.date.toISOString(),
   dateModified: (post.data.updated ?? post.data.date).toISOString(), author: { '@type': 'Person', name: SITE.author },
-  image: post.data.cover ? new URL(post.data.cover, Astro.site ?? SITE.url).href : undefined,
+  image: post.data.cover ? new URL(withBase(post.data.cover), Astro.site ?? SITE.url).href : undefined,
 };
 ---
 <BaseLayout title={post.data.title} description={post.data.description} image={post.data.cover}>
@@ -34,7 +35,7 @@ const jsonLd = {
         <PostMeta post={post} />
       </div>
     </header>
-    {post.data.cover && <img class="article-cover" src={post.data.cover} alt={post.data.coverAlt ?? ''} />}
+    {post.data.cover && <img class="article-cover" src={withBase(post.data.cover)} alt={post.data.coverAlt ?? ''} />}
     <div class="article-surface">
       <div class="article-grid">
         <aside class="article-toc" aria-label="文章目录">

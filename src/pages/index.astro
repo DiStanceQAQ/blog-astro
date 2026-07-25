@@ -2,6 +2,7 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import ArrowIcon from '../components/ArrowIcon.astro';
 import { SITE } from '../config';
+import { withBase } from '../lib/paths';
 ---
 <BaseLayout variant="home">
   <div class="home-hero relative flex flex-col justify-center bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-50 overflow-hidden">
@@ -24,10 +25,10 @@ import { SITE } from '../config';
           </div>
           <div class="home-actions home-reveal home-reveal--5 pt-4 flex flex-col sm:flex-row sm:items-center gap-5">
             <div class="flex gap-4">
-              <a href="/blogs" class="home-primary-cta group relative px-8 py-3.5 rounded-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-bold shadow-lg hover:-translate-y-1 transition-all duration-300">
+              <a href={withBase('/blogs')} class="home-primary-cta group relative px-8 py-3.5 rounded-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-bold shadow-lg hover:-translate-y-1 transition-all duration-300">
                 我的博客 <ArrowIcon class="home-cta-arrow" />
               </a>
-              <a href="/about" class="home-secondary-cta px-8 py-3.5 rounded-full bg-transparent border-2 font-semibold transition-all duration-300">我的简历</a>
+              <a href={withBase('/about')} class="home-secondary-cta px-8 py-3.5 rounded-full bg-transparent border-2 font-semibold transition-all duration-300">我的简历</a>
             </div>
             <div class="home-divider hidden sm:block w-px h-8 mx-2"></div>
             <div class="flex items-center gap-4">

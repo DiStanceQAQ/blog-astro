@@ -1,3 +1,17 @@
 ---
-return Astro.redirect('/categories#tags');
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { withBase } from '../lib/paths';
+
+const target = withBase('/categories#tags');
 ---
+<BaseLayout title="标签" description="按标签浏览文章。">
+  <section class="not-found">
+    <strong>TAGS</strong>
+    <h1>正在前往标签索引。</h1>
+    <a href={target}>查看全部标签</a>
+  </section>
+</BaseLayout>
+
+<script is:inline define:vars={{ target }}>
+  window.location.replace(target);
+</script>

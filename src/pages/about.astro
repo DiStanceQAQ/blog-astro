@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { SITE } from '../config';
+import { withBase } from '../lib/paths';
 ---
 <BaseLayout title="关于" description="关于刘家宁：前端开发、可视化、三维图形与数字体验。">
   <section class="about-hero">
@@ -8,7 +9,7 @@ import { SITE } from '../config';
       <h1><span>让技术被看见、</span><span>被理解，</span><span>也让体验被感受到。</span></h1>
       <p>前端开发工程师，长期关注可视化、三维图形与数字体验。</p>
     </div>
-    <img src="/images/about-studio.webp" alt="投影工作室中的创作者" />
+    <img src={withBase('/images/about-studio.webp')} alt="投影工作室中的创作者" />
   </section>
   <div class="about-sections">
     <section class="about-section">
