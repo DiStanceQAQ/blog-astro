@@ -57,14 +57,18 @@ const featuredPosts = [
     <section class="post-index" aria-labelledby="archive-title">
       <div class="index-section-head">
         <h2 id="archive-title">全部文章</h2>
-        <span>按发布时间排序</span>
+        <div class="index-sort" role="group" aria-label="按发布时间排序">
+          <span class="index-sort-label">发布时间</span>
+          <button type="button" data-sort-order="desc" aria-pressed="true">最新优先</button>
+          <button type="button" data-sort-order="asc" aria-pressed="false">最早优先</button>
+        </div>
       </div>
-      <div class="post-index-list">
+      <div class="post-index-list" data-post-list>
       {posts.map((post, index) => {
         const date = splitDate(post.data.date);
         return (
-          <article class="post-index-row">
-            <span class="post-index-number">{String(index + 1).padStart(2, '0')}</span>
+          <article class="post-index-row" data-post-row data-published={post.data.date.valueOf()}>
+            <span class="post-index-number" data-post-number>{String(index + 1).padStart(2, '0')}</span>
             <div class="post-index-meta">
               <span>{post.data.category}</span>
               <time datetime={post.data.date.toISOString()}>{date.year}.{date.short.replace('/', '.')}</time>
@@ -83,6 +87,34 @@ const featuredPosts = [
 </BaseLayout>
 
 <script>
+  const postList = document.querySelector<HTMLElement>('[data-post-list]');
+  const sortButtons = [...document.querySelectorAll<HTMLButtonElement>('[data-sort-order]')];
+
+  const sortPosts = (order: 'asc' | 'desc') => {
+    if (!postList) return;
+    const rows = [...postList.querySelectorAll<HTMLElement>('[data-post-row]')];
+    const direction = order === 'asc' ? 1 : -1;
+
+    rows
+      .sort((first, second) => {
+        const firstDate = Number(first.dataset.published ?? 0);
+        const secondDate = Number(second.dataset.published ?? 0);
+        return (firstDate - secondDate) * direction;
+      })
+      .forEach((row, index) => {
+        row.querySelector<HTMLElement>('[data-post-number]')!.textContent = String(index + 1).padStart(2, '0');
+        postList.append(row);
+      });
+
+    sortButtons.forEach((button) => {
+      button.setAttribute('aria-pressed', String(button.dataset.sortOrder === order));
+    });
+  };
+
+  sortButtons.forEach((button) => {
+    button.addEventListener('click', () => sortPosts(button.dataset.sortOrder as 'asc' | 'desc'));
+  });
+
   const carousels = document.querySelectorAll<HTMLElement>('[data-carousel]');
 
   carousels.forEach((carousel) => {
