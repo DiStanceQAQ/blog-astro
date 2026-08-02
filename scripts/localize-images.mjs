@@ -33,17 +33,32 @@ try {
       let publicPath = localized.get(url);
       if (!publicPath) {
         const hash = createHash('sha256').update(url).digest('hex').slice(0, 12);
-        const inputPath = join(temporaryDirectory, `${hash}.source`);
-        const outputPath = join(imageDirectory, `${hash}.webp`);
         const response = await fetch(url);
         if (!response.ok) throw new Error(`下载失败 ${response.status}: ${url}`);
-        await writeFile(inputPath, Buffer.from(await response.arrayBuffer()));
-        await run('cwebp', ['-quiet', '-q', '82', inputPath, '-o', outputPath]);
-        publicPath = `/images/posts/${hash}.webp`;
+        const content = Buffer.from(await response.arrayBuffer());
+        const isSvg = response.headers.get('content-type')?.includes('image/svg+xml') || new URL(url).pathname.endsWith('.svg');
+
+        if (isSvg) {
+          const outputPath = join(imageDirectory, `${hash}.svg`);
+          await writeFile(outputPath, content);
+          publicPath = `/images/posts/${hash}.svg`;
+        } else {
+          const inputPath = join(temporaryDirectory, `${hash}.source`);
+          const outputPath = join(imageDirectory, `${hash}.webp`);
+          await writeFile(inputPath, content);
+          await run('cwebp', ['-quiet', '-q', '82', inputPath, '-o', outputPath]);
+          publicPath = `/images/posts/${hash}.webp`;
+        }
         localized.set(url, publicPath);
         count += 1;
       }
       output = output.replace(original, `![${alt}](${publicPath})`);
+    }
+
+    if (output.includes('cover: "__FIRST_IMAGE__"')) {
+      const firstImage = output.match(/!\[[^\]]*\]\((\/images\/posts\/[^\s)]+)\)/)?.[1]
+        ?? '/images/covers/default.webp';
+      output = output.replace('cover: "__FIRST_IMAGE__"', `cover: "${firstImage}"`);
     }
 
     if (output !== source) await writeFile(path, output, 'utf8');

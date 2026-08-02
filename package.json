@@ -13,6 +13,7 @@
 		"astro": "astro",
 		"new": "node scripts/new-post.mjs",
 		"import": "node scripts/import-posts.mjs",
+		"import:markdown": "node scripts/import-markdown.mjs",
 		"localize": "node scripts/localize-images.mjs"
   },
   "dependencies": {
