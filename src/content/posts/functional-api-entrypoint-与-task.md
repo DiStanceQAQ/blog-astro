@@ -26,9 +26,9 @@ Functional API 就是为这种情况准备的。它保留普通 Python 控制流
 
 ```mermaid
 flowchart TB
-    E[entrypoint 工作流]
-    E --> T1[task 检索]
-    E --> T2[task 查询数据库]
+    E["@entrypoint 工作流"]
+    E --> T1["@task 检索"]
+    E --> T2["@task 查询数据库"]
     T1 --> C[普通 if / for / 函数调用]
     T2 --> C
     C --> I[interrupt 可选]
