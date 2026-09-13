@@ -43,6 +43,8 @@ draft: false
 
 图片放在 `public/images/`，文章中使用以 `/images/` 开头的路径。优先使用 WebP 或 AVIF，避免远程图床影响中国内地访问速度。
 
+文章中的 Mermaid 代码块会在构建阶段转换为内联 SVG，不需要浏览器端脚本。首次在本地构建前执行一次 `npx playwright install chromium`；GitHub Actions 已自动安装所需的 Chromium。若部署平台从源码构建（例如 EdgeOne），请把 `npx playwright install --with-deps chromium` 放在 `npm run build` 前的构建步骤中。
+
 迁移来的文章仍含远程图片时，可以先安装 `cwebp`，再运行 `npm run localize`，自动下载、压缩并改写 Markdown 图片路径。
 
 ## 发布

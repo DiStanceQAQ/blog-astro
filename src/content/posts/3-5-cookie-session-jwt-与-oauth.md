@@ -43,7 +43,7 @@ sequenceDiagram
     B->>A: POST /login + 凭据
     A->>A: 验证凭据
     A->>S: 创建随机 Session ID → userId
-    A-->>B: Set-Cookie: session=ID; Secure; HttpOnly; SameSite=Lax
+    A-->>B: Set-Cookie: session=ID, Secure, HttpOnly, SameSite=Lax
     B->>A: GET /account + Cookie
     A->>S: 用 ID 查会话
     S-->>A: 用户、权限、过期时间

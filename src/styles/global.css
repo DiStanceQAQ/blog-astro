@@ -369,6 +369,10 @@ html[data-theme="dark"] .theme-icon--moon { display: block; }
 }
 .article-content img.article-zoomable:hover { opacity: .9; }
 .article-content img.article-zoomable:focus-visible { outline: 2px solid var(--accent); outline-offset: 5px; }
+.article-content svg[id^="mermaid-"] {
+  display: block; width: 100%; max-width: 100%; height: auto; margin: 2.4em auto 1em; overflow: visible;
+}
+html[data-theme="dark"] .article-content svg[id^="mermaid-"] { filter: invert(.9) hue-rotate(180deg); }
 .article-content hr { margin: 3em 0; border: 0; border-top: 1px solid var(--article-border); }
 .article-content pre { margin: 2.3em 0; padding: 22px; overflow: auto; border-radius: 4px; background: #171717 !important; color: #e7e7e7; font-size: 13px; line-height: 1.65; }
 .article-content :not(pre) > code { padding: .12em .36em; background: var(--article-inline-bg); color: var(--article-inline-text); border-radius: 3px; font-size: .9em; }
