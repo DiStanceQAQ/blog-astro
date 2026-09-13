@@ -1,96 +1,214 @@
 ---
-title: "OpenCode 源码解析：一些概念"
-description: "梳理理解 OpenCode 源码所需的运行时、LSP、ACP 与 Effect 等概念。"
+title: "OpenCode 源码解析：常见概念"
+description: "这篇不是词典，而是一张“源码阅读翻译表”：先弄清这些词在一般软件工程中的含义，再看它们在 OpenCode 里具体对应什么。 运行时是程序真正执行时所依赖的环境，负责调度代码、管理内存、提供文件和网络能力，并处理异步任务。"
 date: 2026-07-27
+updated: 2026-09-08
 category: "源码解析"
-tags: ["OpenCode","Effect","LSP","ACP"]
+tags: ["OpenCode","Agent","源码阅读","计算机基础"]
 cover: "/images/covers/default.webp"
 coverAlt: "默认技术封面"
 featured: false
 draft: false
 ---
-## 运行时
-**运行时 = 支撑它运行的“底层执行环境”**
+这篇不是词典，而是一张“源码阅读翻译表”：先弄清这些词在一般软件工程中的含义，再看它们在 OpenCode 里具体对应什么。
 
-**它负责：**
+> **阅读提示**
+> 同一个词可能有多层含义。例如“运行时”既可以指 Node.js/Bun，也可以指 OpenCode 用 Effect 组装出来的应用运行环境。读源码时要看上下文。
 
-+ **管理内存、对象、线程/任务**
-+ **调度代码执行顺序（同步/异步）**
-+ **提供基础功能（例如 `console.log`、`setTimeout`、文件读写等）**
-+ **处理错误，清理资源**
+## 一、程序如何被运行
 
-**不同语言/平台有不同运行时：**
+### 运行时（Runtime）
 
-+ **Node.js 运行时：让 JavaScript 能够操作文件、网络、进程。**
-+ **浏览器运行时：提供 DOM、Web API。**
-+ **Java 运行时（JVM）：管理类加载、垃圾回收、线程。**
+运行时是程序真正执行时所依赖的环境，负责调度代码、管理内存、提供文件和网络能力，并处理异步任务。
 
-**OpenCode 项目中的 Effect 运行时**
+| 运行时 | 提供的典型能力 |
+| --- | --- |
+| 浏览器 | DOM、Web API、页面渲染 |
+| Node.js / Bun | 文件、网络、进程、模块加载 |
+| JVM | 字节码执行、垃圾回收、线程管理 |
+| Effect Runtime | 在 JS 运行时之上组织服务、错误、并发和资源生命周期 |
 
-OpenCode 使用了 Effect（一个 TypeScript 的效应系统，类似 Rust 的 `async` + 依赖注入 + 错误管理）。它的运行时是这个项目的“神经中枢”。
+OpenCode 的 TypeScript 最终仍由 JavaScript 运行时执行；Effect 不是替代 Bun/Node.js，而是在它们之上提供一套更可控的应用执行模型。详见 [opencode源码解析——Effect运行时与生命周期](/blog/opencode-源码解析-effect-运行时与生命周期)。
 
-**a. 依赖注入 & 服务组装**
+### Promise 与 Effect
 
-+ 你需要 `Session` 服务吗？运行时自动创建并注入。
-+ `ToolRegistry` 需要依赖 `Permission` 和 `FileSystem`？运行时保证它们按正确顺序创建。
-+ 不同的环境（生产 / 测试）可以替换不同的实现（比如用内存数据库代替 SQLite）。
+`Promise<A>` 主要表达“未来可能得到一个 `A`”。Effect 常用下面的类型来描述一次计算：
 
-**b. 异步任务调度**
-
-+ 当 LLM 流式返回文本时，运行时负责调度“把文本块写入会话存储”和“通过 SSE 推送给客户端”等并发任务。
-+ 执行多个工具（比如同时读三个文件）时，运行时决定哪些可以并行、哪些必须串行。
-
-**c. 资源生命周期管理**
-
-+ 每个会话需要占用 MCP 子进程、LSP 服务器、文件监视器等。运行时确保当会话结束时，自动关闭这些资源（避免遗留进程）。
-+ 类似 `try/finally` 但更自动，避免忘记清理。
-
-**d. 错误传播与恢复**
-
-+ 调用模型 API 可能失败（网络超时、限流）– 运行时可以自动重试或回退到另一个模型。
-+ 工具执行抛出异常（比如文件不存在）– 运行时捕获后会把错误转为结构化的 `ToolResult` 返回给 LLM，而不是让整个会话崩溃。
-
-**e. 作用域与 Fiber**
-
-+ Effect 运行时有一个核心概念 Fiber（轻量级线程/协程）。每个并发任务是一个 Fiber，运行时调度它们。
-+ 例如：用户按 Ctrl+C 中断会话，运行时可以立即取消所有相关的 Fiber（正在执行的 LLM 请求、工具调用等），并清理资源。
-
-可以把 Effect 运行时 想象成 Node.js 之上的“高级引擎”。Node.js 提供了最基础的 `fs.readFile`，Effect 运行时则提供了如何安全地组合、重试、超时、清理这些操作。
-
-## LSP
-[深入理解LSP Understanding Language Server Protocol](https://zhuanlan.zhihu.com/p/1890892177544021181)
-
-## **ACP**
-[初识 ACP （Agent Client Protocol）](https://zhuanlan.zhihu.com/p/1975252550799335647)
-
-## Host  Client  Server
-+ **Host（主机）**：泛指任何连接到网络的设备（如电脑、手机、服务器等），拥有自己的 IP 地址。它既可以充当客户端，也可以充当服务器，或者同时承担两种角色。
-+ **Client（客户端）**：主动发起请求的一方。它向服务器请求服务或资源，例如浏览器请求网页、手机 App 获取数据。客户端通常运行在用户设备上。
-+ **Server（服务器）**：被动提供服务的一方。它持续运行并监听网络，等待客户端的请求，然后返回响应（如网页内容、文件、计算结果）。服务器通常具有更强的性能和稳定性。
-
-
-## Effect
-`effect`是一个TypeScript 函数式运行时库。它把一次计算表示成一个值：
-
-```typescript
+```ts
 Effect<A, E, R>
 ```
 
-含义大致是：成功返回 `A`，可能以类型化错误 `E` 失败，运行时需要环境/服务 `R`。
+- `A`：成功时得到的值。
+- `E`：已知、可处理的错误类型。
+- `R`：运行这段程序需要的服务或环境。
 
-在 opencode 里，它主要是为这些问题设计的：
+例如，“读取会话”不仅可能返回会话，还可能明确失败为 `NotFoundError`，并要求数据库服务存在。Effect 把这些信息放进类型，而不是藏在注释和运行时异常里。
 
-1. **复杂副作用太多**
-opencode 要处理文件系统、Git、LLM HTTP/WebSocket、LSP、PTY、插件、事件总线、项目实例等。普通 `async/await` 很容易把依赖、错误、资源释放散落在各处。Effect 把这些副作用显式建模，从而实现可追溯。
-2. **依赖注入和运行时组合**
-各模块通过 `Context.Service` 声明服务，通过 `Layer` 提供实现。例如 `AppLayer` 把文件系统、Bus、Config、Session、LLM、MCP 等服务组合成一个应用运行时。
-3. **资源生命周期**
-订阅、进程、实例、文件锁这类资源需要可靠清理。Effect 的 `Scope`、`finalizer`、`Effect.scoped` 能保证成功、失败、取消时都能释放。CLI 命令包装器里也显式保证 instance dispose。
-4. **类型化错误**
-例如 CLI 错误、文件系统错误用 `Schema.TaggedErrorClass` 建模，而不是到处抛普通 `Error`。这样调用方可以区分“用户可见失败”和“程序缺陷”。
-5. **并发与流**
-Bus 用 `PubSub`、`Stream`、`Deferred` 实现事件订阅和测试同步。
+### Service、Layer、ManagedRuntime
 
-它的优势是：依赖更清楚，错误更可控，资源释放更可靠，测试更容易替换环境，并且可以把日志、追踪、重试等横切能力统一挂到运行时上。例如 opencode 的 `AppRuntime` 会自动合入 observability layer。
+| 概念 | 作用 | 可以怎样理解 |
+| --- | --- | --- |
+| `Service` | 描述模块对外提供的能力 | 一份接口契约 |
+| `Layer` | 创建服务及其依赖 | 服务的装配说明 |
+| `ManagedRuntime` | 保存装配完成的服务并执行 Effect | 已经启动的应用环境 |
 
-一句话概括：opencode 用 Effect 把“会失败、要依赖服务、要清理资源的异步程序”从散落的 Promise 代码，提升成可组合、可测试、可观测的应用运行模型。
+OpenCode 的 `AppLayer` 会把数据库、配置、模型、会话、工具、权限、MCP、LSP 等服务组合起来，再交给 `ManagedRuntime`。这比在每个函数里手工创建并层层传递对象更适合大型应用。
+
+### Fiber、Scope 与中断
+
+- **Fiber**：Effect 管理的轻量并发任务，不等于操作系统线程。
+- **Scope**：一组资源和任务的生命周期边界。
+- **Finalizer**：Scope 结束时必定执行的清理动作。
+- **Interrupt**：协作式取消。被取消的任务会结束，并触发相应清理逻辑。
+
+这套机制适合 LLM 流、工具调用、事件订阅、文件监视器等长时间运行的工作。用户中断任务时，系统需要停止的不只是一个函数，还包括它派生出的相关异步工作。
+
+## 二、应用怎样对外提供能力
+
+### Host、Client、Server
+
+- **Host（主机）**：运行程序的设备或执行环境。它是一种“位置/机器”概念，不等同于客户端或服务器。
+- **Client（客户端）**：主动发起请求的一方，例如 TUI、桌面应用或 SDK 调用方。
+- **Server（服务器）**：接收请求并提供能力的一方，例如 OpenCode 的 HTTP 服务。
+
+同一台电脑可以同时运行 Client 和 Server。OpenCode 的桌面端可以连接本机服务，也可以通过协议连接其他运行位置，所以不要把“客户端”简单理解成用户电脑，把“服务器”简单理解成云端电脑。
+
+### CLI、TUI、API、SDK
+
+| 概念 | 定义 | OpenCode 中的用途 |
+| --- | --- | --- |
+| CLI | 通过命令和参数操作程序 | 启动任务、服务或辅助命令 |
+| TUI | 在终端中绘制交互界面 | 展示消息流、工具状态和权限询问 |
+| API | 服务对外约定的调用协议 | HTTP 路由、请求和响应结构 |
+| SDK | 对 API 的编程语言封装 | 让 JS/TS 程序更方便地调用服务 |
+
+`SDK v2` 表示一套客户端 API 版本；它不自动等于本文所说的“Session V2 内核”。判断架构时应该看服务实际调用的是 `SessionPrompt` 还是 `SessionV2.Service`。
+
+### 流式响应与 SSE
+
+模型生成内容不是一次性返回，而是持续产生文本增量、推理片段、工具调用和结束事件。服务端可通过 SSE（Server-Sent Events）把事件沿一条 HTTP 连接持续推送给客户端。
+
+```mermaid
+flowchart LR
+    M[模型事件流] --> P[处理并持久化]
+    P --> E[事件总线 / SSE]
+    E --> U[TUI / Desktop / SDK]
+```
+
+“流式”解决低延迟展示问题；“持久化”解决断线重连和历史恢复问题。两者不能互相替代。
+
+## 三、Agent 领域概念
+
+### Provider、Model、Agent、Tool
+
+| 概念 | 回答的问题 |
+| --- | --- |
+| Provider | 请求发给哪家模型服务，以及怎样认证和适配协议？ |
+| Model | 具体使用哪个模型及其能力、上下文窗口和参数？ |
+| Agent | 用什么系统提示、权限、工具和策略完成任务？ |
+| Tool | 模型可以请求系统执行哪些确定性操作？ |
+
+模型只生成“我要调用 `read`，参数是某路径”这样的结构化意图；真正读文件的是 OpenCode 的工具实现。这个边界非常重要：模型负责决策，宿主程序负责校验、授权和执行。
+
+### Session、Message、Part、Turn、Step
+
+- **Session**：一次可持续、可恢复的任务容器。
+- **Message**：用户或助手的一条结构化消息。
+- **Part**：消息里的细粒度内容，如文本、附件、推理、工具调用或步骤边界。
+- **Turn**：一次向模型发起请求并消费完整响应的过程。
+- **Step**：Agent 循环里的一个执行单位；一次任务可能经过多次模型请求和工具调用。
+
+这些词在不同模块中的结构略有差异，不能仅凭类名猜测。经典结构详见 [opencode源码解析——消息、上下文与压缩](/blog/opencode-源码解析-消息-上下文与压缩)，V2 结构详见 [opencode源码解析——Session V2与事件溯源](/blog/opencode-源码解析-session-v2-与事件溯源)。
+
+### 上下文（Context）与记忆（Memory）
+
+数据库保存的是完整执行记录；模型上下文是每次调用前，从记录中筛选、转换、压缩出来的有限输入。
+
+```text
+持久化历史 ≠ 模型当前看到的上下文
+```
+
+因此“系统记得某件事”至少有三种可能：数据仍在数据库中、数据仍在本轮模型上下文中、或者数据已经被压缩为摘要。三者不能混为一谈。
+
+## 四、协议与扩展
+
+### LSP：理解代码语义
+
+LSP（Language Server Protocol）规定编辑器和语言服务器怎样交换诊断、定义、引用、符号等信息。
+
+文本搜索只能找到相同字符串；LSP 可以在语言规则允许的范围内判断“这个符号到底指向哪个定义”。不过 LSP 的能力取决于语言服务器和项目是否正确初始化，不能把它当成绝对正确的代码理解器。
+
+### MCP：给模型接入外部工具和资源
+
+MCP（Model Context Protocol）让宿主应用以统一协议连接外部工具、资源和提示服务。OpenCode 在这里扮演 MCP Client；数据库、浏览器或企业服务可以作为 MCP Server。
+
+```mermaid
+flowchart LR
+    L[LLM] -->|请求调用| O[OpenCode 宿主]
+    O -->|权限与参数校验| C[MCP Client]
+    C --> S[MCP Server]
+    S --> C -->|结构化结果| O --> L
+```
+
+MCP 并不意味着模型可以直接访问外部系统。请求仍经过 OpenCode 的工具适配、权限判断、执行和结果截断。
+
+### ACP：连接 Agent 与交互客户端
+
+ACP（Agent Client Protocol）关注 Agent 与编辑器/客户端之间的交互约定，例如建立会话、传递消息、展示工具调用和处理权限请求。它与 MCP 的关注点不同：ACP 更偏向“客户端怎样使用 Agent”，MCP 更偏向“Agent 宿主怎样接入工具和上下文”。
+
+### Plugin 与 Skill
+
+- **Plugin**：可执行的扩展代码，可以注册工具或挂入生命周期钩子。
+- **Skill**：按需加载的任务说明和配套资源，主要改变 Agent 怎样做事。
+
+Skill 更接近“可复用工作方法”，Plugin 更接近“可执行软件扩展”；两者都能扩展能力，但风险和生命周期不同。
+
+## 五、事件与持久化
+
+### Event、Event Sourcing、Projector、Read Model
+
+- **Event**：已经发生的事实，如“提示已接收”“工具已完成”。
+- **Event sourcing（事件溯源）**：把事实事件作为状态演变的依据，而不只保存最终状态。
+- **Projector（投影器）**：消费事件并更新便于查询的表。
+- **Read model（读模型）**：为列表、详情和上下文查询准备的当前状态视图。
+
+```mermaid
+flowchart LR
+    C[命令] --> E[(持久事件)]
+    E --> P[Projector]
+    P --> R[(读模型)]
+    R --> Q[查询/API]
+```
+
+好处是执行过程可回放、可订阅，也能区分“事实已记录”和“后台工作是否已经完成”。代价是系统必须认真处理事件顺序、幂等、投影一致性和恢复策略。
+
+### Durable、Process-local、Idempotency
+
+- **Durable（持久）**：进程退出后仍然存在，例如数据库中的已接收提示。
+- **Process-local（进程内）**：只存在于当前进程内，例如某个正在运行的 Fiber 或协调器 Map。
+- **Idempotency（幂等）**：相同请求重试多次，效果仍等价于执行一次。
+
+Session V2 先把 prompt 持久化，再唤醒执行器，正是为了让“请求已经被接收”不依赖某个短暂的内存任务。详见 [opencode源码解析——Session V2与事件溯源](/blog/opencode-源码解析-session-v2-与事件溯源)。
+
+## 六、最容易混淆的几组词
+
+| 容易混淆 | 正确区分 |
+| --- | --- |
+| Runtime 与 JS runtime | Effect Runtime 是应用级执行模型，仍运行在 Bun/Node.js 上 |
+| Client 与 Host | Client 是角色，Host 是运行位置 |
+| Model 与 Agent | Model 提供生成能力；Agent 组合模型、提示、工具和权限 |
+| Tool 与 MCP | Tool 是模型可调用能力；MCP 是其中一类外部能力接入协议 |
+| 历史与上下文 | 历史可以完整持久化；上下文是发给模型的有限视图 |
+| Event 与当前状态 | Event 是发生过的事实；当前状态通常由事件投影得到 |
+| SDK v2 与 Session V2 | 一个是客户端 API 版本，一个是会话执行内核的设计代际 |
+
+## 源码入口
+
+- Effect 应用装配：`packages/opencode/src/effect/app-runtime.ts`
+- 经典会话编排：`packages/opencode/src/session/prompt.ts`
+- 工具规范：`packages/opencode/src/tool/tool.ts`
+- V2 会话接口：`packages/core/src/session.ts`
+- V2 持久输入：`packages/core/src/session/input.ts`
+- V2 事件投影：`packages/core/src/session/projector.ts`
+
+返回总目录：[00 OpenCode 源码阅读导航](/blog/opencode-源码阅读导航)

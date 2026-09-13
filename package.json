@@ -14,6 +14,7 @@
 		"new": "node scripts/new-post.mjs",
 		"import": "node scripts/import-posts.mjs",
 		"import:markdown": "node scripts/import-markdown.mjs",
+		"sync:obsidian": "node scripts/sync-obsidian.mjs",
 		"localize": "node scripts/localize-images.mjs"
   },
   "dependencies": {

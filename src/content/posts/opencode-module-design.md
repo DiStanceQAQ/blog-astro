@@ -1,914 +1,227 @@
 ---
 title: "OpenCode 源码解析：模块设计"
-description: "拆解 OpenCode 的 Agent Loop、工具系统、记忆与压缩机制。"
+description: "opencode源码解析——总体概览 讨论系统分层；这篇只讨论模块边界：每个模块拥有哪部分事实、依赖谁，以及为什么不能随意合并。 读一个模块时，可以连续问四个问题："
 date: 2026-07-27
+updated: 2026-09-08
 category: "源码解析"
-tags: ["OpenCode","Agent Loop","工具调用","记忆系统"]
+tags: ["OpenCode","Agent","源码阅读","软件架构"]
 cover: "/images/posts/e10521fe8041.svg"
 coverAlt: "OpenCode Agent Loop 架构图"
 featured: false
 draft: false
 ---
-## Agent Loop
-opencode agent loop 的主心智模型：
+[opencode源码解析——总体概览](/blog/opencode-source-overview) 讨论系统分层；这篇只讨论模块边界：每个模块拥有哪部分事实、依赖谁，以及为什么不能随意合并。
 
-<!-- 这是一个文本绘图，源码为：flowchart TD
-  A[用户输入<br/>API / TUI / 命令] --> B[SessionPrompt.prompt<br/>提示入口]
-  B --> C[createUserMessage<br/>写入用户消息和 Parts]
-  C --> D[更新会话时间<br/>写入临时工具权限]
-  D --> E[SessionPrompt.loop<br/>进入会话循环]
-  E --> F[runLoop<br/>while true 主循环]
+## 1. 模块边界的核心问题
 
-  F --> G[读取有效历史<br/>filterCompactedEffect]
-  G --> H[定位最近消息<br/>lastUser / lastAssistant / lastFinished]
+读一个模块时，可以连续问四个问题：
 
-  H --> I{上一轮是否已完成?}
-  I -- 是 --> Z[返回最后一条助手消息]
-  I -- 否 --> J{是否有待处理任务?}
+1. 它拥有哪类状态？
+2. 它接受什么输入、产生什么输出？
+3. 它调用谁，谁又调用它？
+4. 出错、中断或重启后，责任落在哪一层？
 
-  J -- 子任务 subtask --> K[handleSubtask<br/>运行子 Agent 会话]
-  K --> F
+用这四个问题看 OpenCode，会发现系统并不是按“文件操作、网络操作、模型操作”简单分类，而是按生命周期和一致性边界拆分。
 
-  J -- 压缩任务 compaction --> L[SessionCompaction.process<br/>生成上下文摘要]
-  L --> F
-
-  J -- 没有 --> M{是否上下文溢出?}
-  M -- 是 --> N[SessionCompaction.create<br/>写入压缩任务 Part]
-  N --> F
-
-  M -- 否 --> O[读取当前 Agent 和 Model]
-  O --> P[insertReminders<br/>插入规划/执行提醒]
-  P --> Q[创建助手消息<br/>Assistant Message]
-  Q --> R[SessionProcessor.create<br/>创建流事件处理器]
-
-  R --> S[resolveTools<br/>解析可用工具]
-  S --> S1[ToolRegistry<br/>内置工具 / 插件工具 / MCP 工具]
-  S1 --> S2[权限过滤<br/>Agent 权限 + Session 权限]
-  S2 --> T[构造模型上下文<br/>system / 环境 / skills / instructions / 历史]
-
-  T --> U[MessageV2.toModelMessagesEffect<br/>Session 历史转模型消息]
-  U --> V[SessionProcessor.process<br/>开始处理一次模型调用]
-  V --> W[LLM.stream<br/>调用模型流式输出]
-
-  W --> X[SessionProcessor 处理流事件<br/>文本 / reasoning / 工具 / step / 错误]
-  X --> X1[写回 Session<br/>updateMessage / updatePart / updatePartDelta]
-  X1 --> Y{本轮结果}
-
-  Y -- continue<br/>继续 --> F
-  Y -- compact<br/>需要压缩 --> N
-  Y -- stop<br/>停止 --> Z
- -->
-![](/images/posts/e10521fe8041.svg)
-
-<!-- 这是一个文本绘图，源码为：sequenceDiagram
-  participant 用户 as 用户/API
-  participant 编排器 as SessionPrompt
-  participant 会话 as Session 存储
-  participant 工具注册 as ToolRegistry
-  participant 处理器 as SessionProcessor
-  participant 模型 as LLM.stream
-  participant 工具 as Tool 执行器
-  participant 压缩 as Compaction
-
-  用户->>编排器: prompt(input)
-  编排器->>会话: updateMessage(用户消息)
-  编排器->>会话: updatePart(用户消息 Parts)
-  编排器->>编排器: loop(sessionID)
-
-  loop Agent 主循环
-    编排器->>会话: 读取压缩后的有效历史 filterCompactedEffect(sessionID)
-    编排器->>编排器: 检查最近的用户消息 / 助手消息 / 已完成消息
-
-    alt 存在子任务 Part
-      编排器->>编排器: handleSubtask() 运行子 Agent
-      编排器->>会话: 写入 task 工具结果
-
-    else 存在压缩任务 Part
-      编排器->>压缩: process() 执行上下文压缩
-      压缩->>会话: 写入摘要型助手消息
-
-    else 上下文溢出
-      编排器->>压缩: create() 创建压缩任务
-      压缩->>会话: 写入 compaction 用户消息和 Part
-
-    else 正常模型执行
-      编排器->>工具注册: resolveTools(agent, model)
-      工具注册-->>编排器: 返回 AI SDK tools
-
-      编排器->>会话: updateMessage(助手消息)
-      编排器->>处理器: create(助手消息)
-      编排器->>处理器: process(模型输入)
-      处理器->>模型: stream(input)
-
-      模型-->>处理器: 文本 / reasoning / 工具 / step 事件
-      处理器->>会话: updatePart / updatePartDelta
-
-      alt 模型调用工具
-        模型->>工具: execute(args)
-        工具-->>模型: 返回工具结果
-        模型-->>处理器: tool-result
-        处理器->>会话: 写入 completed 工具 Part
-      end
-
-      处理器-->>编排器: 返回 continue / stop / compact
-    end
-  end
-
-  编排器-->>用户: 返回最后一条助手消息
- -->
-![](/images/posts/e6641c360fec.svg)
-
-**工具调用时序图**
-
-<!-- 这是一个文本绘图，源码为：sequenceDiagram
-  participant 模型 as LLM 模型
-  participant 处理器 as SessionProcessor
-  participant 工具 as Tool 执行
-  participant 会话 as Session 记忆
-
-  模型->>处理器: tool-input-start
-  处理器->>会话: 写入 pending 工具 Part
-
-  模型->>处理器: tool-call 参数
-  处理器->>会话: 更新为 running
-
-  模型->>工具: execute(args)
-  工具-->>模型: 工具结果
-
-  模型->>处理器: tool-result
-  处理器->>会话: 更新为 completed 工具 Part
-
-  处理器-->>处理器: 返回 continue
-  处理器->>会话: 下一轮重新读取历史
- -->
-![](/images/posts/c1c25519ac39.svg)
-
-opencode 的 agent loop 是一个 session 驱动的 ReAct 循环：
-
-```latex
-读 session 记忆
-  -> 选择 agent/model/tools
-  -> 调 LLM
-  -> 把文本、工具调用、工具结果、patch、token 写回 session
-  -> 根据结果继续、停止或压缩
+```mermaid
+flowchart LR
+    ENTRY[入口] --> SESSION[会话服务]
+    SESSION --> ORCH[执行编排]
+    ORCH --> MODEL[模型能力]
+    ORCH --> TOOLS[工具能力]
+    ORCH --> STATE[状态记录]
+    TOOLS --> PERM[权限]
+    TOOLS --> WORLD[文件/进程/MCP/LSP]
+    STATE --> VIEW[查询与客户端事件]
 ```
 
-## 工具模块
-工具层可以分成四层：
+## 2. 经典栈的主要模块
 
-```latex
-Tool 定义层
-  -> ToolRegistry 注册/筛选层
-  -> SessionPrompt.resolveTools 适配层
-  -> LLM/Processor 调用与落盘层
+### 2.1 入口与实例
+
+| 模块 | 主要职责 | 关键边界 |
+| --- | --- | --- |
+| `src/index.ts` | 解析命令并注册 CLI/TUI/serve/MCP/ACP 等入口 | 不直接实现 Agent 循环 |
+| `src/server` | Hono 路由、请求校验、SSE/API 输出 | 把业务委托给 Service |
+| `src/effect/app-runtime.ts` | 组合应用级 Layer，提供执行 Effect 的 Runtime | 负责装配，不拥有会话业务 |
+| `src/project` | 解析项目、工作树和实例上下文 | 隔离不同目录的配置与资源 |
+
+经典栈采用“全局应用运行时 + 项目实例上下文”。很多调用从普通 Promise/API 边界进入 Effect，再在当前 Instance 中取得目录、worktree 和相关服务。
+
+### 2.2 会话与执行
+
+| 模块 | 主要职责 | 关键输出 |
+| --- | --- | --- |
+| `Session` | 会话和消息的查询、写入、事件 | Session、Message、Part |
+| `SessionPrompt` | 接收 prompt、创建用户消息、驱动主循环 | 最终 Assistant Message |
+| `SessionRunState` | 保证同一 session 的运行状态协调 | 正在运行或复用中的任务 |
+| `SessionProcessor` | 消费模型流，把事件写成 Part | text/reasoning/tool/step 等状态 |
+| `SessionCompaction` | 判断上下文溢出、创建并执行压缩 | 摘要和压缩边界 |
+| `SessionSummary` | 汇总会话变更和文件 diff | 面向 UI 的摘要信息 |
+
+`SessionPrompt` 是编排者，但不应该亲自实现模型协议或文件读写。它只决定“现在该调用谁、结果是否足以结束”。
+
+### 2.3 模型相关模块
+
+```mermaid
+flowchart LR
+    P[SessionPrompt] --> L[LLM Service]
+    L --> PR[Provider / Auth / Config]
+    L --> SDK[AI SDK 默认运行时]
+    L -.->|实验开关| N[Native Runtime]
+    SDK --> EV[统一 LLMEvent 流]
+    N --> EV
+    EV --> SP[SessionProcessor]
 ```
 
-**工具层架构图**
+| 模块 | 职责 |
+| --- | --- |
+| `Provider` | 找到模型、Provider 配置和能力信息 |
+| `LLM` | 组合 system/messages/tools/参数并发起流式请求 |
+| AI SDK runtime | 默认的多 Provider 调用实现 |
+| Native runtime | 实验性、只覆盖部分 Provider 的另一条执行路径 |
+| `LLMEvent` | 把不同底层运行时归一为处理器能消费的事件 |
 
-<!-- 这是一张图片，ocr 内容为： -->
-![](/images/posts/9857476dc246.webp)
+这里的深模块思想是：上层只理解统一事件，不需要知道 Anthropic、OpenAI 或另一套 runtime 的每个协议差异。
 
-### **工具规范**
-工具统一用 `Tool.Def` 。
+### 2.4 工具与权限
 
-```typescript
-{
-  id: string
-  description: string
-  parameters: Schema
-  execute(args, ctx): Effect<{
-    title: string
-    metadata: Record<string, unknown>
-    output: string
-    attachments?: FilePart[]
-  }>
-}
+| 模块 | 职责 |
+| --- | --- |
+| `Tool.Def` | 定义名称、描述、参数 schema 和执行函数 |
+| `ToolRegistry` | 收集内置、配置目录和插件工具，并按模型筛选 |
+| `SessionTools` | 加入上下文、权限、钩子和 MCP 工具，适配给模型 SDK |
+| `Permission` | 合并并评估 allow/ask/deny 规则，等待用户答复 |
+| `Truncate` | 控制工具输出大小，避免撑爆模型上下文 |
+| `SessionProcessor` | 保存工具调用从 pending 到 completed/error 的过程 |
+
+工具模块的详细数据流见 [opencode源码解析——工具、权限与MCP](/blog/opencode-源码解析-工具-权限与-mcp)。
+
+### 2.5 外部能力
+
+| 模块 | 连接的外部世界 | 为什么独立 |
+| --- | --- | --- |
+| `MCP` | 外部 MCP Servers | 有连接、认证、协议转换和资源生命周期 |
+| `LSP` | 各语言服务器 | 与项目语言、进程和工作目录绑定 |
+| `Plugin` | 本地/第三方插件 | 需要发现、加载和生命周期钩子 |
+| `Snapshot` | Git 支持的变更快照 | 与消息文本不是同一种状态 |
+| `Format` | 修改后的代码格式化 | 需要按语言和配置选择命令 |
+| `Question` | Agent 向用户请求结构化回答 | 需要跨执行流等待 UI 回应 |
+
+## 3. Session V2 的模块重分配
+
+V2 没有简单复制 `SessionPrompt`，而是把“接收、调度、执行、记录、查询”拆开。
+
+```mermaid
+flowchart TB
+    API[SessionV2 API] --> IN[(SessionInput<br/>durable inbox)]
+    IN --> EX[SessionExecution]
+    EX --> CO[SessionRunCoordinator]
+    CO --> LM[LocationServiceMap]
+    LM --> RUN[SessionRunner]
+    RUN --> LL[LLMClient / Tools]
+    RUN --> EV[(EventV2)]
+    EV --> PROJ[SessionProjector]
+    PROJ --> STORE[(SessionStore / read model)]
+    STORE --> API
 ```
 
-工具执行时会拿到 `Tool.Context`：
+| 模块 | 拥有的责任 | 特别注意 |
+| --- | --- | --- |
+| `SessionV2` | 会话 API 和 prompt admission | `prompt` 成功表示输入已接收，不一定表示已执行完 |
+| `SessionInput` | 未处理输入的 durable inbox | 区分 `steer` 与 `queue`，记录 admitted/promoted 序号 |
+| `SessionExecution` | 只按 session ID 发出 resume/wake/interrupt | 不携带目录级服务 |
+| `SessionRunCoordinator` | 当前进程中同一 session 的串行拥有权 | 不同 session 可并发；不是分布式锁 |
+| `LocationServiceMap` | 按目录/workspace 懒加载服务集合 | 工具、配置、文件能力不会串项目 |
+| `SessionRunner` | 提升输入、调用模型、结算工具、决定下一轮 | 每个 provider turn 显式调用一次 `llm.stream` |
+| `EventV2` | 保存并广播发生过的 durable facts | 事件顺序是正确恢复的基础 |
+| `SessionProjector` | 把事件投影到可查询表 | 投影不是事实源本身 |
+| `SessionStore` | 查询 session/message/context 读模型 | 不负责编排执行 |
 
-```typescript
-{
-  sessionID,
-  messageID,
-  agent,
-  abort,
-  callID,
-  messages,
-  metadata(...),
-  ask(...)
-}
-```
+详见 [opencode源码解析——Session V2与事件溯源](/blog/opencode-源码解析-session-v2-与事件溯源)。
 
-两个最重要的上下文函数：
+## 4. 五条最重要的依赖方向
 
-`ctx.ask(...)`：发起权限请求，例如 bash/edit/write/task 这类敏感工具。
+### 4.1 入口依赖业务服务，业务服务不依赖界面
 
-`ctx.metadata(...)`：更新工具运行中的标题和 metadata，让 UI 能看到工具正在做什么。
+TUI、Desktop、HTTP handler 都可以触发会话，但会话核心不应引用某个具体 UI 组件。否则增加一个新客户端就要改 Agent loop。
 
-`Tool.define()` 还会统一做两件事：
+### 4.2 编排器依赖工具抽象，不依赖具体工具
 
-+ 参数 schema 校验
-+ 工具输出截断，避免超长 output 塞爆上下文
+编排器只需要一张“工具名 → 可调用定义”的表。`read`、`bash`、MCP 工具甚至插件工具都通过相同边界进入模型层，因此新增工具通常不需要修改 loop。
 
-### **内置工具**
-`ToolRegistry` 初始化内置工具：
+### 4.3 工具依赖权限服务，模型不能直接批准自己
 
-```latex
-invalid
-模型工具调用修复失败时的兜底工具。正常情况下模型不该主动用它。比如模型调用了不存在的工具，或参数坏到无法修复，系统会转成 invalid，输出错误说明。
-question
-向用户提问。用于需求不清、需要用户做选择、需要确认偏好时。它会把问题发到 UI/TUI，拿到用户回答后，把回答作为工具结果返回给模型。
-bash
-执行 shell 命令。
-read
-读取文件或目录。文件内容会带行号返回。支持 offset / limit，也能读取图片/PDF 并作为附件返回。
-glob
-按文件名模式找文件。
-grep
-按正则搜索文件内容。
-edit
-对已有文件做精确字符串替换。适合小改动、局部替换。
-write
-写完整文件。会覆盖目标文件。
-task
-启动一个子 agent。它是 subagent 编排的核心工具。
-它会：
-1.创建或复用子 session
-2.把 prompt 发给指定 subagent
-3.等待子 agent 完成
-4.把结果作为 task 工具输出返回主 agent
-webfetch
-抓取指定 URL 内容，返回 markdown/text/html。适合用户给了具体网页、文档链接时读取内容。
-todowrite
-维护任务列表
-websearch
-实时网页搜索，基于 Exa。适合查最新信息、新闻、当前文档、网页资料。
-codesearch
-代码/文档搜索，基于 Exa Code API。适合查库、SDK、API、框架用法，例如 React、FastAPI、Next.js 等。
-skill
-加载 skill 指令。
-apply_patch
-用 patch 语言批量增删改文件。适合模型生成结构化补丁，尤其是 GPT 系模型会优先暴露这个工具，而不是普通 edit/write。
-lsp
-调用 Language Server Protocol，适合语义级代码探索，比如查定义、查引用、查调用关系。
-plan_exit
-规划模式结束工具。
-```
+权限是宿主系统的安全策略，不是 prompt 中的一句建议。模型可以请求工具，却不能把自己的输出当成用户授权。
 
-还有两类动态工具，由用户自己配置：
+### 4.4 写模型与读模型分离
 
-```latex
-配置目录里的 tool/*.js 或 tools/*.ts
-插件暴露的 plugin.tool
-```
+V2 通过事件记录状态变化，再由 Projector 更新查询表。这样执行端更关注“发布了什么事实”，API 更关注“当前怎样高效查询”。两者通过事件 schema，而不是共享一大块可变对象来耦合。
 
-这些会被转换成统一的 `Tool.Def`。
+### 4.5 全局调度与 location 能力分离
 
-MCP 工具不直接进 `ToolRegistry.builtin/custom`，而是在 `SessionPrompt.resolveTools()` 里额外合并。
+`SessionExecution` 只认识 session ID；真正的 Runner、工具、配置和文件系统由 session 的 location 决定。这样未来把某个 location 放到另一执行节点时，路由边界已经存在。
 
-**怎么决定“有哪些工具可用”**
+## 5. 同步边界、异步边界、持久边界
 
-第一层：Registry 按模型/provider 过滤。
+判断一个调用是否可靠，不能只看函数返回值，还要看它跨了哪种边界。
 
-主要规则：
+| 边界 | 示例 | 失败后的含义 |
+| --- | --- | --- |
+| 同步内存调用 | 参数转换、规则匹配 | 当前调用立即失败，没有持久状态 |
+| 异步进程内调用 | Fiber、工具执行、LLM stream | 进程退出可能中断，需要清理或恢复 |
+| 持久化调用 | 写 Message、Event、SessionInput | 成功后重启仍可观察 |
+| 外部网络调用 | Provider、MCP | 可能出现超时、重复请求和未知结果 |
 
-```latex
-websearch / codesearch
-  -> 只有 provider 是 opencode 或开启 Exa 时可用
+V2 的 `prompt -> admit -> wake` 顺序很典型：先跨持久边界，再做可失败的进程内调度。
 
-apply_patch
-  -> GPT 系且不是 oss/gpt-4 时可用
+## 6. 模块之间用什么“语言”沟通
 
-edit/write
-  -> apply_patch 不可用时才暴露
-```
+| 边界 | 交换的数据 |
+| --- | --- |
+| Client → Server | HTTP/ACP 请求、SDK 类型 |
+| Session → LLM | system parts、模型消息、tool definitions |
+| LLM → Processor/Runner | `LLMEvent` 流 |
+| Model → Tool | tool name、call ID、schema 化参数 |
+| Tool → Model | 结构化结果、文本输出、附件、错误 |
+| Runtime → UI | 消息/事件更新、SSE 数据 |
+| Event → Projector | 带 session 和顺序信息的 durable event |
 
-第二层：ToolRegistry 动态增强描述。
+边界数据越稳定，上下游越容易独立演进。`LLMEvent` 和 `Tool.Def` 的价值，就在于把变化频繁的 Provider/工具实现挡在统一接口后面。
 
-`task` 工具会注入当前 agent 可以调用的 subagent 列表。
+## 7. 设计上的取舍
 
-`skill` 工具会注入当前 agent 可用的 skill 列表。
+### 收益
 
-这会影响模型“知道有哪些子 agent/skill 可以用”。
+- Provider、工具、UI 可以相对独立地扩展。
+- 执行过程结构化，支持流式 UI、恢复、审计和调试。
+- Effect 让依赖、错误、取消和资源生命周期更显式。
+- V2 的 durable inbox 与事件投影为可靠执行打下基础。
 
-第三层：LLM 层按权限和用户工具开关再过滤。
+### 成本
 
-```typescript
-resolveTools(input)
-```
+- 同一个业务动作会跨多个服务，初读源码不如单体函数直观。
+- 经典与 V2 共存期间，名字和数据结构容易混淆。
+- 事件溯源需要严格处理顺序、幂等、投影与恢复。
+- Effect 的服务、Layer、Scope、Fiber 有额外学习成本。
 
-它会去掉：
+模块化不是让代码“看起来更分散”，而是在变化、错误和生命周期真正不同的位置建立边界。OpenCode 的复杂度主要来自它同时管理模型流、真实工具、长生命周期会话和多个客户端，这些边界是其复杂度的结果，而不是纯粹的架构装饰。
 
-```latex
-用户本轮显式禁用的工具
-agent/session permission 禁用的工具
-```
+## 8. 按问题定位源码
 
-然后 `streamText` 里传：
+| 想回答的问题 | 先看哪里 |
+| --- | --- |
+| 请求怎样进入经典 Agent loop？ | `packages/opencode/src/session/prompt.ts` |
+| 模型事件怎样变成消息片段？ | `packages/opencode/src/session/processor.ts` |
+| 工具怎样注册和过滤？ | `packages/opencode/src/tool/registry.ts` |
+| 权限为何弹窗或拒绝？ | `packages/opencode/src/permission/index.ts` |
+| V2 prompt 为什么不容易丢？ | `packages/core/src/session/input.ts` |
+| 同一 session 怎样避免并行乱序？ | `packages/core/src/session/run-coordinator.ts` |
+| V2 当前状态从哪里查？ | `packages/core/src/session/store.ts`、`projector.ts` |
+| 目录相关服务怎样隔离？ | `packages/core/src/location-layer.ts` |
 
-```typescript
-activeTools: Object.keys(tools).filter((x) => x !== "invalid")
-tools
-toolChoice
-```
+## 源码基线
 
-**怎么决定“调用哪个工具”**
+本文依据 OpenCode `1.17.8`、commit `355a0bc`。模块边界处于演进期，阅读新版本时优先核对 `AppLayer`、`SessionV2.Interface`、`LocationServiceMap` 和实际 HTTP handlers 的依赖。
 
-这个要分清楚：opencode 决定“给模型哪些工具”，但具体调用哪个工具，通常由模型根据工具描述、参数 schema、上下文自主决定。
-
-流程是：
-
-```latex
-opencode 暴露工具集合
-  -> 模型看到工具名/描述/参数
-  -> 模型生成 tool-call
-  -> AI SDK 调用对应 execute(args)
-```
-
-例外/约束：
-
-+ `toolChoice: "required"` 时，模型必须调用工具，例如结构化输出 `StructuredOutput`。
-+ 工具被 permission deny 时不会暴露或执行会被拒绝。
-+ 参数不合法时，`Tool.define()` 会返回 schema 校验错误。
-+ 工具名大小写不匹配时，`LLM.experimental_repairToolCall` 会尝试转小写修复；修不好会调用 `invalid` 工具。
-
-**工具调用如何落盘**
-
-工具调用状态由 `SessionProcessor` 记录。
-
-<!-- 这是一个文本绘图，源码为：sequenceDiagram
-  participant 模型 as LLM 模型
-  participant SDK as AI SDK
-  participant 工具 as Tool.execute
-  participant 处理器 as SessionProcessor
-  participant 会话 as Session Store
-
-  模型-->>处理器: tool-input-start
-  处理器->>会话: 写入 ToolPart pending
-
-  模型-->>处理器: tool-call(args)
-  处理器->>会话: 更新 ToolPart running + input
-
-  SDK->>工具: execute(args, Tool.Context)
-  工具->>工具: ctx.ask 权限检查
-  工具->>处理器: ctx.metadata 更新运行信息
-  工具-->>SDK: output / metadata / attachments
-
-  模型-->>处理器: tool-result
-  处理器->>会话: 更新 ToolPart completed
-
-  处理器-->>会话: 下一轮模型上下文包含工具结果 -->
-![](/images/posts/d1a45249c141.svg)
-
-`ToolPart` 状态机：
-
-```latex
-pending -> running -> completed
-                   -> error
-```
-
-下一轮 `MessageV2.toModelMessagesEffect()` 会把 completed tool part 转成模型能理解的 tool result。于是模型就能基于工具结果继续推理。
-
-**权限**
-
-工具权限是三处共同作用：
-
-```latex
-Agent.permission
-Session.permission
-Tool.Context.ask()
-```
-
-
-<!-- 这是一个文本绘图，源码为：flowchart LR
-  A[Agent 权限规则] --> C[Permission.merge]
-  B[Session 临时权限] --> C
-  C --> D[ctx.ask]
-  D --> E{allow / ask / deny}
-  E -- allow --> F[继续执行工具]
-  E -- ask --> G[向用户请求批准]
-  G --> F
-  E -- deny --> H[工具失败/停止] -->
-![](/images/posts/68132ceaa5a7.svg)
-
-`resolveTools()` 给每个工具注入 `ctx.ask`。
-
-## 记忆模块
-<!-- 这是一个文本绘图，源码为：flowchart TD
-  User[用户输入] --> Create[创建用户消息<br/>SessionPrompt.createUserMessage]
-  Create --> Store[(会话消息存储<br/>Session Message Store)]
-
-  Model[模型流 / 工具执行] --> Processor[会话处理器<br/>SessionProcessor]
-  Processor --> Parts[消息片段<br/>Message Parts]
-  Parts --> Store
-
-  Parts --> Text[文本片段<br/>用户文本 / 助手回复]
-  Parts --> Reasoning[推理片段<br/>模型 reasoning 流]
-  Parts --> Tool[工具片段<br/>工具输入 / 输出 / 错误]
-  Parts --> Step[步骤片段<br/>step-start / step-finish]
-  Parts --> Patch[补丁片段<br/>文件变更摘要]
-  Parts --> CompactMark[压缩片段<br/>上下文压缩标记]
-
-  Store --> ReadHistory[读取有效历史<br/>过滤已压缩内容]
-  ReadHistory --> Convert[转换为模型消息<br/>toModelMessagesEffect]
-  Convert --> Model
-
-  Step --> Snapshot[代码快照<br/>Snapshot]
-  Snapshot --> Diff[计算文件差异<br/>SessionSummary.computeDiff]
-  Diff --> Summary[(会话摘要<br/>文件数 / 新增 / 删除)]
-  Summary --> Store
-
-  Store --> Overflow{上下文是否过长?}
-  Overflow -- 是 --> Compaction[上下文压缩<br/>SessionCompaction]
-  Compaction --> CompactSummary[压缩后的任务摘要]
-  CompactSummary --> Store
-  Overflow -- 否 --> ReadHistory
-
-  Tool --> Truncate[工具输出截断<br/>避免结果过长]
-  Truncate --> Store
- -->
-![](/images/posts/e4ed25c95b3b.svg)
-
-**核心设计**
-
-opencode 的记忆模块是围绕 `Session` 事件日志设计的。每次对话、工具调用、模型输出、文件 diff、token usage 都会变成 message 或 part 写回 session。
-
-主要有三层：
-
-```latex
-Session
-  └── Message
-        └── Part
-```
-
-`Session` 是一次会话。
-
-`Message` 是 user / assistant 消息。
-
-`Part` 是消息里的细粒度内容，比如文本、工具调用、reasoning、step、patch、compaction。
-
-**记忆如何进入下一轮模型**
-
-```latex
-session 历史
-  -> filterCompactedEffect()
-  -> toModelMessagesEffect()
-  -> LLM.stream()
-```
-
-也就是说，模型看到的是经过处理后的 session 历史。已压缩的旧内容会被摘要替代，最近几轮会尽量保留原始细节。
-
-### **工具调用记忆**
-工具调用也被当作记忆保存：
-
-<!-- 这是一个文本绘图，源码为：sequenceDiagram
-  participant 模型 as 模型
-  participant 处理器 as SessionProcessor<br/>会话处理器
-  participant 工具 as 工具执行器
-  participant 会话 as Session Store<br/>会话存储
-
-  模型->>处理器: 开始生成工具输入
-  处理器->>会话: 写入“等待中”的工具记录
-
-  模型->>处理器: 发起工具调用<br/>工具名 + 参数
-  处理器->>会话: 更新为“运行中”<br/>保存工具参数
-
-  处理器->>工具: 执行工具
-  工具->>处理器: 返回结果 / 附件 / 元数据
-
-  处理器->>会话: 更新为“已完成”<br/>保存输出、附件、元数据
-
-  会话->>模型: 下一轮对话时<br/>工具结果重新进入上下文
- -->
-![](/images/posts/7e3461b2f8ec.svg)
-
-所以模型能“记住”刚才读了什么文件、bash 输出是什么、apply_patch 改了哪些文件，本质上是因为这些结果都变成了 `tool part`，下一轮又被 `toModelMessagesEffect()` 转回模型消息。
-
-### **压缩记忆**
-当 token 溢出时：
-
-<!-- 这是一个文本绘图，源码为：flowchart LR
-  Full[完整历史] --> Select[选择要压缩的旧 turn]
-  Select --> Summarize[compaction agent 生成摘要]
-  Summarize --> Keep[保留最近几轮原文]
-  Keep --> NewContext[摘要 + 最近原文]
-  NewContext --> NextLLM[下一轮模型上下文] -->
-![](/images/posts/490ce2835886.svg)
-
-压缩摘要的结构包含：
-
-```latex
-Goal  目标
-Constraints & Preferences  约束&偏好
-Progress  进度
-Key Decisions  关键决策
-Next Steps  下一步行动
-Critical Context  关键上下文
-Relevant Files  相关文件
-```
-
-### 三层记忆模型—Session、Message、Part
-opencode 记忆系统的主干：
-
-```latex
-Session
-  └── Message
-        └── Part
-```
-
-可以把它类比成：
-
-```latex
-一次会话
-  └── 一轮用户/助手消息
-        └── 这条消息里的结构化片段
-```
-
-**Session 层**
-
-`Session` 表示一整个会话，是最高层的容器。
-
-核心字段：
-
-```typescript
-{
-  id,
-  slug,
-  projectID,
-  workspaceID?,
-  directory,
-  parentID?,
-  title,
-  version,
-  summary?,
-  permission?,
-  revert?,
-  time
-}
-```
-
-它回答的是：“这次对话属于哪里、叫什么、状态如何？”
-
-几个关键含义：
-
-`id`：会话唯一 ID。
-
-`slug`：短标识，常用于 plan 文件名。
-
-`projectID` / `directory`：这个会话绑定的项目和工作目录。
-
-`parentID`：父会话。subagent 会创建子 session，所以 agent 编排天然是 session tree。
-
-`title`：会话标题，初始自动生成，后续可由 title agent 生成。
-
-`summary`：整个 session 的 diff 摘要，比如改了几个文件、增删多少行。
-
-`permission`：session 级工具权限覆盖，例如某次请求临时禁用 bash。
-
-`revert`：撤销状态，记录可回滚到哪个 message/part/snapshot。
-
-`time`：创建、更新、压缩、归档时间。
-
-**<u>Session 层不保存具体文本，它保存“会话元信息”。</u>**
-
-**Message 层**
-
-`Message` 是一次会话里的消息头。
-
-Message 有两种：
-
-```typescript
-User | Assistant
-```
-
-User message 表示用户输入：
-
-```typescript
-{
-  id,
-  sessionID,
-  role: "user",
-  time: { created },
-  agent,
-  model,
-  system?,
-  tools?,
-  format?,
-  summary?
-}
-```
-
-它回答的是：“用户这一轮想让哪个 agent、哪个 model、带什么临时配置来处理？”
-
-`agent`：比如 `build`、`plan`。
-
-`model`：本轮使用的 provider/model。
-
-`tools`：本轮工具开关。
-
-`format`：是否要求 JSON schema 输出。
-
-`system`：用户附加 system prompt。
-
-Assistant message 表示模型/agent 的一次响应：
-
-```typescript
-{
-  id,
-  sessionID,
-  role: "assistant",
-  parentID,
-  agent,
-  modelID,
-  providerID,
-  path,
-  cost,
-  tokens,
-  finish?,
-  error?,
-  summary?,
-  structured?
-}
-```
-
-它回答的是：“agent 这一轮执行结果是什么状态？”
-
-`parentID`：指向对应 user message。
-
-`agent`：实际执行的 agent。
-
-`path`：执行时 cwd/root。
-
-`cost` / `tokens`：模型消耗。
-
-`finish`：结束原因，比如 `stop` 或 `tool-calls`。
-
-`error`：失败信息。
-
-`summary`：是否是上下文压缩摘要消息。
-
-Message 层也不一定直接保存正文，正文主要在 Part 层。
-
-**Part 层**
-
-`Part` 是消息的实际内容片段。
-
-所有 Part 都有：
-
-```typescript
-{
-  id,
-  sessionID,
-  messageID,
-  type
-}
-```
-
-它回答的是：“这条消息里具体发生了什么？”
-
-常见 Part 类型：
-
-`text`：文本内容。
-
-```typescript
-{
-  type: "text",
-  text,
-  synthetic?,
-  ignored?,
-  time?,
-  metadata?
-}
-```
-
-用户输入、助手回复、系统自动插入的 reminder 都可以是 text part。
-
-`file`：文件或附件。
-
-```typescript
-{
-  type: "file",
-  mime,
-  filename?,
-  url,
-  source?
-}
-```
-
-用户附加文件、图片、MCP resource、LSP symbol 来源都可以放这里。
-
-`reasoning`：模型 reasoning 流。
-
-```typescript
-{
-  type: "reasoning",
-  text,
-  metadata?,
-  time
-}
-```
-
-`tool`：工具调用记录。
-
-```typescript
-{
-  type: "tool",
-  callID,
-  tool,
-  state,
-  metadata?
-}
-```
-
-工具 state 有：
-
-```typescript
-pending -> running -> completed | error
-```
-
-这是 agent 能“记住工具结果”的关键。
-
-`step-start` / `step-finish`：模型 step 边界。
-
-```typescript
-{
-  type: "step-start",
-  snapshot?
-}
-
-{
-  type: "step-finish",
-  reason,
-  snapshot?,
-  cost,
-  tokens
-}
-```
-
-用于记录一次模型调用的开始、结束、费用、token 和文件快照。
-
-`patch`：文件改动摘要。
-
-```typescript
-{
-  type: "patch",
-  hash,
-  files
-}
-```
-
-`compaction`：上下文压缩任务。
-
-```typescript
-{
-  type: "compaction",
-  auto,
-  overflow?,
-  tail_start_id?
-}
-```
-
-`subtask`：子 agent 任务。
-
-```typescript
-{
-  type: "subtask",
-  prompt,
-  description,
-  agent,
-  model?,
-  command?
-}
-```
-
-数据库上对应 `PartTable`，见 [session.sql.ts](/Users/ljn/Documents/GitHub/opencode/packages/opencode/src/session/session.sql.ts:61)。
-
-**三层如何关联**
-
-关系字段是：
-
-```latex
-Session.id
-  = Message.sessionID
-
-Message.id
-  = Part.messageID
-
-Session.id
-  = Part.sessionID
-```
-
-为什么 Part 也存 `sessionID`？因为这样可以直接按 session 查 part，方便索引、删除、同步和事件发布。
-
-实际结构像这样：
-
-```typescript
-const session = {
-  id: "ses_123",
-  title: "Implement auth",
-}
-
-const userMessage = {
-  id: "msg_001",
-  sessionID: "ses_123",
-  role: "user",
-  agent: "build",
-  model: { providerID: "openai", modelID: "gpt-5" },
-}
-
-const userTextPart = {
-  id: "prt_001",
-  sessionID: "ses_123",
-  messageID: "msg_001",
-  type: "text",
-  text: "帮我实现登录",
-}
-
-const assistantMessage = {
-  id: "msg_002",
-  sessionID: "ses_123",
-  parentID: "msg_001",
-  role: "assistant",
-  agent: "build",
-  modelID: "gpt-5",
-  providerID: "openai",
-}
-
-const toolPart = {
-  id: "prt_002",
-  sessionID: "ses_123",
-  messageID: "msg_002",
-  type: "tool",
-  tool: "read",
-  callID: "call_abc",
-  state: {
-    status: "completed",
-    input: { filePath: "src/auth.ts" },
-    output: "...file content...",
-    title: "",
-    metadata: {},
-    time: { start: 1, end: 2 },
-  },
-}
-```
-
-**为什么要拆成三层**
-
-因为 agent 执行不是简单聊天，它有很多结构化过程：
-
-```latex
-用户文本
-模型文本流
-模型 reasoning 流
-工具调用输入
-工具执行输出
-工具错误
-文件附件
-文件 diff
-token/cost
-上下文压缩摘要
-子 agent 任务
-```
-
-如果都塞进一条字符串，会很难做：
-
-+ 工具结果回放
-+ 流式 UI
-+ 权限审批展示
-+ 历史压缩
-+ 文件 diff 统计
-+ retry/error 恢复
-+ subagent session tree
-+ JSON schema 输出
-+ 多 provider tool message 转换
-
-所以 opencode 选择：
-
-```latex
-Session 管会话
-Message 管轮次和角色
-Part 管具体内容和执行痕迹
-```
-
-**模型上下文如何生成**
-
-每次调用模型时，并不是直接拿数据库文本拼 prompt，而是：
-
-```latex
-Session.messages()
-  -> MessageV2.filterCompactedEffect()
-  -> MessageV2.toModelMessagesEffect()
-  -> LLM.stream()
-```
-
-`toModelMessagesEffect()` 会把 Part 转成模型能理解的消息：
-
-```latex
-text part      -> user/assistant text
-file part      -> file attachment
-tool part      -> tool call/result
-reasoning part -> reasoning
-compaction part -> "What did we do so far?"
-subtask part   -> "The following tool was executed by the user"
-```
+返回总目录：[00 OpenCode 源码阅读导航](/blog/opencode-源码阅读导航)
